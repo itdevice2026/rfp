@@ -144,13 +144,18 @@
   .timeline .ev .t{color:var(--muted);white-space:nowrap;font-size:12px}
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:9px;font-size:13px;z-index:100;opacity:0;transition:.25s}
   .toast.show{opacity:1}
+  .copy-tag{text-align:center;font-size:12px;font-weight:800;letter-spacing:3px;color:#b01f1f;margin:0 0 2px}
+  .cut-line{border-top:2px dashed #aaa;margin:14px 0}
 
   @media print{
     body *{visibility:hidden}
     #printArea,#printArea *{visibility:visible}
     #printArea{position:absolute;inset:0;margin:0;padding:0}
-    .rfp-doc{padding:10px 16px}
-    @page{size:A4 landscape;margin:10mm}
+    .rfp-doc{padding:6px 16px;page-break-inside:avoid;break-inside:avoid}
+    .rfp-doc h1.title{font-size:22px}
+    .rfp-doc .desc-box{min-height:56px}
+    .cut-line{margin:6px 0}
+    @page{size:A4 portrait;margin:8mm}
   }
   @media (max-width:760px){
     .stats{grid-template-columns:repeat(2,1fr)} .grid2,.grid3{grid-template-columns:1fr}
@@ -478,7 +483,7 @@ const FLOW = {
 window.openView = async function(id){
   const r=DATA.find(x=>x.id===id);if(!r)return;
   $("viewTitle").textContent=r.rfp_number||"RFP";
-  $("printArea").innerHTML=renderDoc(r);
+  $("printArea").innerHTML=renderDoc(r,"ORIGINAL")+'<div class="cut-line"></div>'+renderDoc(r,"DUPLICATE");
   const f=$("viewFoot");f.innerHTML="";
   const mk=(label,cls,fn)=>{const b=document.createElement("button");b.className="btn "+cls+" sm";b.textContent=label;b.onclick=fn;f.appendChild(b);};
   mk("🖨 Print / Save PDF","",()=>window.print());
@@ -513,11 +518,12 @@ async function delRfp(r){
   toast("Deleted");$("viewModal").classList.add("hidden");await load();
 }
 
-function renderDoc(r){
+function renderDoc(r,copyLabel){
   const mark=k=>`<span class="pm">${k===r.payment_method?'<span class="chk">✔</span>':'<span class="chk"></span>'} ${PM[k].toUpperCase()}</span>`;
   const period=(r.period_from||r.period_to)?`FOR THE PERIOD OF: ${fdate(r.period_from)} - ${fdate(r.period_to)}`:"";
   const logo=`<div class="rlogo"><div class="mtclogo" style="width:120px;height:90px"></div></div>`;
   return `<div class="rfp-doc">
+    <div class="copy-tag">${copyLabel||""}</div>
     <div class="hd"><h1 class="title">REQUEST FOR PAYMENT</h1>${logo}</div>
     <div class="doc-top">
       <div class="pm-list">
