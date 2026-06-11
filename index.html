@@ -213,7 +213,7 @@
       <table>
         <thead><tr>
           <th>RFP No.</th><th>Company</th><th>Date</th><th>Payee</th><th>Description</th>
-          <th class="right">Amount</th><th>Method</th><th>Status</th>
+          <th>Account No.</th><th class="right">Amount</th><th>Method</th><th>Status</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -489,6 +489,7 @@ function render(){
       <td class="num">${fdate(r.request_date)}</td>
       <td>${esc(r.payee)}</td>
       <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.description||"")}</td>
+      <td class="num">${esc(r.account_no||"")}</td>
       <td class="right num">${PHP(r.amount)}</td>
       <td>${PM[r.payment_method]||r.payment_method}</td>
       <td><span class="badge s-${r.status}">${r.status}</span></td>
