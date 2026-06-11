@@ -185,6 +185,7 @@
       <button data-tab="dashboard" class="active">Dashboard</button>
     </nav>
     <div class="spacer"></div>
+    <button class="btn ghost sm hidden" id="vendorsBtn">Vendors</button>
     <button class="btn ghost sm hidden" id="companiesBtn">Companies</button>
     <button class="btn sm" id="newBtn">+ New Request</button>
     <div class="who"><b id="uName">—</b><span class="role-pill" id="uRole">—</span></div>
@@ -241,6 +242,10 @@
         <div class="field"><label>Due Date</label><input id="fDue" type="date"/></div>
       </div>
 
+      <div class="grid2">
+        <div class="field"><label>Vendor (master)</label><select id="fVendor"></select></div>
+        <div class="field"><label>Account / Service</label><select id="fVAcct"></select></div>
+      </div>
       <div class="grid2">
         <div class="field"><label>Payee *</label><input id="fPayee"/></div>
         <div class="field"><label>Amount *</label><input id="fAmount" type="number" step="0.01"/></div>
@@ -324,6 +329,47 @@
   </div>
 </div>
 
+<!-- VENDOR MASTER MODAL -->
+<div class="overlay hidden" id="vendorModal">
+  <div class="modal">
+    <div class="modal-head"><h2>Vendor / Payee Master</h2><button class="x" id="vClose">×</button></div>
+    <div class="modal-body">
+      <fieldset>
+        <legend id="vFormTitle">Add Vendor</legend>
+        <div class="grid2">
+          <div class="field"><label>Vendor / Payee Name *</label><input id="vName"/></div>
+          <div class="field" style="display:flex;align-items:flex-end;gap:8px"><input type="checkbox" id="vActive" checked style="width:auto"/> <label style="margin:0 0 10px">Active</label></div>
+        </div>
+        <div class="err" id="vErr"></div>
+        <button class="btn sm" id="vSave">Save Vendor</button>
+        <button class="btn ghost sm" id="vReset">Clear</button>
+      </fieldset>
+
+      <div id="vAcctSection" class="hidden">
+        <fieldset>
+          <legend>Accounts / Services for <span id="vAcctVendor"></span></legend>
+          <div id="vAcctList"></div>
+          <div class="grid3">
+            <div class="field"><label>Account Number</label><input id="aNum"/></div>
+            <div class="field"><label>Service / Label</label><input id="aLabel" placeholder="e.g. Fibr 50 Data Voice"/></div>
+            <div class="field" style="display:flex;align-items:flex-end;gap:8px"><input type="checkbox" id="aActive" checked style="width:auto"/> <label style="margin:0 0 10px">Active</label></div>
+          </div>
+          <div class="field"><label>Description (particulars)</label><textarea id="aDesc" rows="2"></textarea></div>
+          <div class="err" id="aErr"></div>
+          <button class="btn sm" id="aSave">Save Account</button>
+          <button class="btn ghost sm" id="aReset">Clear account form</button>
+        </fieldset>
+      </div>
+
+      <fieldset>
+        <legend>Vendors</legend>
+        <div id="vList"></div>
+      </fieldset>
+    </div>
+    <div class="modal-foot"><button class="btn ghost sm" id="vClose2">Close</button></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -343,6 +389,8 @@ let COMPANIES = [];
 let editingId = null;
 let coEditingId = null;
 let coLogoData = undefined; // undefined = unchanged, null = cleared, string = new data URI
+let VENDORS = [];
+let vEditingId = null, aEditingId = null;
 
 const $ = id => document.getElementById(id);
 function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200);}
@@ -377,8 +425,10 @@ async function boot(){
   $("uName").textContent=ME.name;$("uRole").textContent=ME.role;
   if(!can("rfp.create"))$("newBtn").classList.add("hidden");
   if(can("rfp.companies"))$("companiesBtn").classList.remove("hidden");
+  if(can("rfp.vendors"))$("vendorsBtn").classList.remove("hidden");
   buildPmGrid();
   await loadCompanies();
+  await loadVendors();
   await load();
 }
 
@@ -464,6 +514,7 @@ function openForm(r){
   $("formErr").textContent="";
   const set=(id,v)=>$(id).value=v||"";
   $("fCompany").value=(r&&r.company_id)?r.company_id:(COMPANIES.filter(c=>c.active)[0]||{}).id||"";
+  setVendorOnForm(r&&r.vendor_id?r.vendor_id:"", r&&r.vendor_account_id?r.vendor_account_id:"");
   set("fDate",r?r.request_date:new Date().toISOString().slice(0,10));
   set("fDue",r?.due_date);set("fRfp",r?.rfp_number);set("fPayee",r?.payee);
   set("fAmount",r?r.amount:"");set("fDesc",r?.description);set("fLoc",r?.location);
@@ -482,6 +533,8 @@ async function saveForm(){
   const pmEl=document.querySelector('input[name=pm]:checked');
   const payload={
     company_id:$("fCompany").value||null,
+    vendor_id:$("fVendor").value||null,
+    vendor_account_id:$("fVAcct").value||null,
     payment_method:pmEl?pmEl.value:"regular_check",
     payment_method_other:$("pmOther").value||null,
     request_date:$("fDate").value||null,
@@ -683,6 +736,108 @@ async function saveCompany(){
   toast(coEditingId?"Company updated":"Company added");
   resetCoForm();
   await loadCompanies();
+}
+
+/* ---------- Vendor / Payee master ---------- */
+async function loadVendors(){
+  const {data,error}=await sb.from("vendors").select("*,vendor_accounts(*)").order("name");
+  if(error){toast(error.message);return;}
+  VENDORS=(data||[]).map(v=>({...v,vendor_accounts:(v.vendor_accounts||[]).slice().sort((a,b)=>(a.sort_order-b.sort_order)||((a.label||"").localeCompare(b.label||"")))}));
+  populateVendorSelect();
+  if(!$("vendorModal").classList.contains("hidden")) renderVList();
+}
+function vById(id){return VENDORS.find(v=>v.id===id)||null;}
+function populateVendorSelect(){
+  const cur=$("fVendor").value;
+  $("fVendor").innerHTML=`<option value="">— Type manually —</option>`+VENDORS.filter(v=>v.active).map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join("");
+  if(cur)$("fVendor").value=cur;
+}
+function fillAccountSelect(vid, selId){
+  const v=vById(vid);
+  const accts=v?v.vendor_accounts.filter(a=>a.active):[];
+  $("fVAcct").innerHTML=`<option value="">— Select account / service —</option>`+accts.map(a=>`<option value="${a.id}">${esc(a.label||a.account_number||a.description||"account")}${a.account_number?" · "+esc(a.account_number):""}</option>`).join("");
+  if(selId)$("fVAcct").value=selId;
+}
+function setVendorOnForm(vid, aid){ $("fVendor").value=vid||""; fillAccountSelect(vid||"", aid||""); }
+$("fVendor").onchange=()=>{
+  const v=vById($("fVendor").value);
+  fillAccountSelect($("fVendor").value,"");
+  if(v)$("fPayee").value=v.name;
+};
+$("fVAcct").onchange=()=>{
+  const v=vById($("fVendor").value); if(!v)return;
+  const a=v.vendor_accounts.find(x=>x.id===$("fVAcct").value);
+  if(a){ if(a.account_number!=null)$("fAcct").value=a.account_number; if(a.description!=null)$("fDesc").value=a.description; }
+};
+
+/* Vendor manager (admin) */
+$("vendorsBtn").onclick=openVendors;
+$("vClose").onclick=$("vClose2").onclick=()=>$("vendorModal").classList.add("hidden");
+$("vReset").onclick=()=>resetVForm();
+$("vSave").onclick=saveVendor;
+$("aReset").onclick=()=>resetAForm();
+$("aSave").onclick=saveAccount;
+function openVendors(){resetVForm();renderVList();$("vendorModal").classList.remove("hidden");}
+function resetVForm(){vEditingId=null;$("vFormTitle").textContent="Add Vendor";$("vName").value="";$("vActive").checked=true;$("vErr").textContent="";$("vAcctSection").classList.add("hidden");resetAForm();}
+function renderVList(){
+  $("vList").innerHTML=VENDORS.map(v=>`
+    <div class="co-row">
+      <div class="ci"><b>${esc(v.name)} ${v.active?"":'<span class="pill">inactive</span>'}</b>
+      <span>${v.vendor_accounts.length} account(s)</span></div>
+      <button class="btn ghost sm" onclick="editVendor('${v.id}')">Edit</button>
+    </div>`).join("")||`<div style="color:var(--muted)">No vendors yet.</div>`;
+}
+window.editVendor=function(id){
+  const v=vById(id);if(!v)return;
+  vEditingId=id;$("vFormTitle").textContent="Edit "+v.name;
+  $("vName").value=v.name;$("vActive").checked=v.active;$("vErr").textContent="";
+  $("vAcctVendor").textContent=v.name;$("vAcctSection").classList.remove("hidden");
+  renderAcctList(id);resetAForm();
+};
+async function saveVendor(){
+  $("vErr").textContent="";
+  const name=$("vName").value.trim();
+  if(!name){$("vErr").textContent="Name is required.";return;}
+  const payload={name,active:$("vActive").checked};
+  $("vSave").disabled=true;$("vSave").textContent="Saving…";
+  let res;
+  if(vEditingId)res=await sb.from("vendors").update(payload).eq("id",vEditingId).select().single();
+  else res=await sb.from("vendors").insert(payload).select().single();
+  $("vSave").disabled=false;$("vSave").textContent="Save Vendor";
+  if(res.error){$("vErr").textContent=res.error.message;return;}
+  toast(vEditingId?"Vendor updated":"Vendor added");
+  await loadVendors();
+  editVendor(res.data.id);
+}
+function renderAcctList(vid){
+  const v=vById(vid);const accts=v?v.vendor_accounts:[];
+  $("vAcctList").innerHTML=accts.map(a=>`
+    <div class="co-row">
+      <div class="ci"><b>${esc(a.label||a.account_number||"(account)")} ${a.active?"":'<span class="pill">inactive</span>'}</b>
+      <span>${a.account_number?"Acct "+esc(a.account_number)+" · ":""}${esc(a.description||"")}</span></div>
+      <button class="btn ghost sm" onclick="editAccount('${a.id}')">Edit</button>
+    </div>`).join("")||`<div style="color:var(--muted);margin-bottom:8px">No accounts yet.</div>`;
+}
+function resetAForm(){aEditingId=null;$("aNum").value="";$("aLabel").value="";$("aDesc").value="";$("aActive").checked=true;$("aErr").textContent="";}
+window.editAccount=function(id){
+  const v=vById(vEditingId);if(!v)return;
+  const a=v.vendor_accounts.find(x=>x.id===id);if(!a)return;
+  aEditingId=id;$("aNum").value=a.account_number||"";$("aLabel").value=a.label||"";$("aDesc").value=a.description||"";$("aActive").checked=a.active;$("aErr").textContent="";
+};
+async function saveAccount(){
+  $("aErr").textContent="";
+  if(!vEditingId){$("aErr").textContent="Save the vendor first.";return;}
+  const payload={vendor_id:vEditingId,account_number:$("aNum").value.trim()||null,label:$("aLabel").value.trim()||null,description:$("aDesc").value.trim()||null,active:$("aActive").checked};
+  if(!payload.account_number&&!payload.description&&!payload.label){$("aErr").textContent="Enter an account number, label, or description.";return;}
+  $("aSave").disabled=true;$("aSave").textContent="Saving…";
+  let res;
+  if(aEditingId)res=await sb.from("vendor_accounts").update(payload).eq("id",aEditingId).select().single();
+  else res=await sb.from("vendor_accounts").insert(payload).select().single();
+  $("aSave").disabled=false;$("aSave").textContent="Save Account";
+  if(res.error){$("aErr").textContent=res.error.message;return;}
+  toast(aEditingId?"Account updated":"Account added");
+  await loadVendors();
+  renderAcctList(vEditingId);resetAForm();
 }
 
 /* ---------- Session restore ---------- */
