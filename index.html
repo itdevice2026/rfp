@@ -296,6 +296,13 @@
           <div class="field"><label>Bank</label><input id="fBank"/></div>
         </div>
       </fieldset>
+
+      <fieldset>
+        <legend>Attachments — basis of payment (Invoice, SOA, etc.)</legend>
+        <div id="fExistingAtt" style="font-size:13px;margin-bottom:8px"></div>
+        <input id="fFiles" type="file" multiple/>
+        <div id="fFilesList" style="margin-top:8px;font-size:13px;color:var(--muted)"></div>
+      </fieldset>
       <div class="err" id="formErr"></div>
     </div>
     <div class="modal-foot">
@@ -311,6 +318,10 @@
     <div class="modal-head"><h2 id="viewTitle">RFP</h2><button class="x" id="viewClose">×</button></div>
     <div class="modal-body">
       <div id="printArea"></div>
+      <fieldset style="margin-top:18px"><legend>Attachments — basis of payment</legend>
+        <div id="attList" style="font-size:13px"></div>
+        <input id="attUpload" type="file" multiple style="margin-top:8px"/>
+      </fieldset>
       <fieldset style="margin-top:18px"><legend>Activity</legend><div class="timeline" id="timeline"></div></fieldset>
     </div>
     <div class="modal-foot" id="viewFoot"></div>
@@ -594,6 +605,50 @@ function openForm(r){
   document.querySelectorAll('input[name=pm]').forEach(i=>i.checked=(i.value===pm));
   $("pmOtherWrap").classList.toggle("hidden",pm!=="others");
   $("formModal").classList.remove("hidden");
+  loadAttachments(id);
+  $("fFiles").onchange=updateFilesList;
+}
+
+/* ---------- Attachments ---------- */
+function updateFilesList(){
+  const files=$("fFiles").files;
+  $("fFilesList").textContent=files.length?[...files].map(f=>f.name+" ("+Math.round(f.size/1024)+"KB)").join(", "):"";
+}
+async function loadAttachments(rfpId){
+  if(!rfpId){$("fExistingAtt").textContent="";return;}
+  const {data:atts}=await sb.from("rfp_attachments").select("*").eq("rfp_id",rfpId).order("created_at");
+  $("fExistingAtt").innerHTML=!atts||!atts.length?"No attachments yet.":atts.map(a=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
+      <a href="#" onclick="downloadAttachment('${a.id}','${esc(a.filename)}');return false" style="color:var(--blue);text-decoration:none">${esc(a.filename)}</a>
+      <button class="btn ghost xs" onclick="deleteAttachment('${a.id}')">Delete</button>
+    </div>`).join("");
+}
+async function uploadAttachments(rfpId){
+  const files=$("fFiles").files;
+  if(!files.length)return;
+  toast("Uploading "+files.length+" file(s)…");
+  for(let f of files){
+    const path=`rfp/${rfpId}/${Date.now()}_${f.name}`;
+    const {error:uploadErr}=await sb.storage.from("rfp-attachments").upload(path,f,{cacheControl:"3600",upsert:false});
+    if(uploadErr){toast("Upload failed: "+f.name);continue;}
+    const {error:insertErr}=await sb.from("rfp_attachments").insert({rfp_id:rfpId,filename:f.name,file_size:f.size,mime_type:f.type,storage_path:path,uploaded_by_uid:ME.id});
+    if(insertErr){toast("Failed to record "+f.name);}
+  }
+  $("fFiles").value="";updateFilesList();loadAttachments(rfpId);
+}
+async function downloadAttachment(attId,filename){
+  const {data:att}=await sb.from("rfp_attachments").select("storage_path").eq("id",attId).single();
+  if(!att){toast("Attachment not found");return;}
+  const {data:fileData,error}=await sb.storage.from("rfp-attachments").download(att.storage_path);
+  if(error){toast("Download failed");return;}
+  const url=URL.createObjectURL(fileData);const a=document.createElement("a");a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+}
+async function deleteAttachment(attId){
+  if(!confirm("Delete this attachment?"))return;
+  const {error}=await sb.from("rfp_attachments").delete().eq("id",attId);
+  if(error){toast(error.message);return;}
+  toast("Deleted");
+  loadAttachments(editingId||$("fId").value);
 }
 
 async function saveForm(){
@@ -648,6 +703,7 @@ async function saveForm(){
   $("saveBtn").disabled=false;$("saveBtn").textContent="Save";
   if(res.error){$("formErr").textContent=res.error.message;return;}
   await logAct(id, editingId?"edited":"created", editingId?"Details updated":("RFP "+(res.data.rfp_number||"")+" created"));
+  await uploadAttachments(id);
   $("formModal").classList.add("hidden");
   toast(editingId?"Updated":"Request created — "+(res.data.rfp_number||""));
   await load();
@@ -672,6 +728,13 @@ window.openView = async function(id){
   const r=DATA.find(x=>x.id===id);if(!r)return;
   $("viewTitle").textContent=r.rfp_number||"RFP";
   $("printArea").innerHTML=renderDoc(r,"ORIGINAL")+'<div class="cut-line"></div>'+renderDoc(r,"DUPLICATE");
+  const {data:atts}=await sb.from("rfp_attachments").select("*").eq("rfp_id",id).order("created_at");
+  $("attList").innerHTML=!atts||!atts.length?"No attachments.":atts.map(a=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)">
+      <a href="#" onclick="downloadAttachment('${a.id}','${esc(a.filename)}');return false" style="color:var(--blue);text-decoration:none">${esc(a.filename)}</a>
+      <span style="color:var(--muted);font-size:11px">${new Date(a.created_at).toLocaleString("en-PH")}</span>
+      ${can("rfp.edit")&&r.status==="draft"?`<button class="btn ghost xs" onclick="deleteAttachment('${a.id}');openView('${id}')">Delete</button>`:""}
+    </div>`).join("");
   const f=$("viewFoot");f.innerHTML="";
   const mk=(label,cls,fn)=>{const b=document.createElement("button");b.className="btn "+cls+" sm";b.textContent=label;b.onclick=fn;f.appendChild(b);};
   mk("🖨 Print / Save PDF","",()=>window.print());
