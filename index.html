@@ -386,6 +386,7 @@
 
       <fieldset>
         <legend>Vendors</legend>
+        <input id="vSearch" placeholder="Search vendor / payee name…" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;margin-bottom:10px"/>
         <div id="vList"></div>
       </fieldset>
     </div>
@@ -832,15 +833,21 @@ $("vReset").onclick=()=>resetVForm();
 $("vSave").onclick=saveVendor;
 $("aReset").onclick=()=>resetAForm();
 $("aSave").onclick=saveAccount;
-function openVendors(){resetVForm();renderVList();$("vendorModal").classList.remove("hidden");}
+if($("vSearch"))$("vSearch").oninput=renderVList;
+function openVendors(){resetVForm();if($("vSearch"))$("vSearch").value="";renderVList();$("vendorModal").classList.remove("hidden");}
 function resetVForm(){vEditingId=null;$("vFormTitle").textContent="Add Vendor";$("vName").value="";$("vActive").checked=true;$("vErr").textContent="";$("vAcctSection").classList.add("hidden");resetAForm();}
 function renderVList(){
-  $("vList").innerHTML=VENDORS.map(v=>`
+  const q=($("vSearch")?$("vSearch").value:"").toLowerCase().trim();
+  let list=q?VENDORS.filter(v=>(v.name||"").toLowerCase().includes(q)):VENDORS;
+  const total=list.length;
+  list=list.slice(0,300);
+  $("vList").innerHTML=(list.map(v=>`
     <div class="co-row">
       <div class="ci"><b>${esc(v.name)} ${v.active?"":'<span class="pill">inactive</span>'}</b>
       <span>${v.vendor_accounts.length} account(s)</span></div>
       <button class="btn ghost sm" onclick="editVendor('${v.id}')">Edit</button>
-    </div>`).join("")||`<div style="color:var(--muted)">No vendors yet.</div>`;
+    </div>`).join("")||`<div style="color:var(--muted)">${q?"No vendor matches your search.":"No vendors yet."}</div>`)
+    +(total>300?`<div style="color:var(--muted);padding:6px 2px;font-size:13px">Showing first 300 of ${total}${q?" matches":""}. Type to narrow down.</div>`:"");
 }
 window.editVendor=function(id){
   const v=vById(id);if(!v)return;
