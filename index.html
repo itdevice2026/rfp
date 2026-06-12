@@ -345,6 +345,16 @@
         <button class="btn ghost sm" id="vReset">Clear</button>
       </fieldset>
 
+      <fieldset>
+        <legend>Bulk Import (CSV / Excel)</legend>
+        <p style="margin:0 0 8px;color:var(--muted);font-size:13px">Columns in order: <b>Vendor Name, Account Number, Service/Label, Description</b> — one row per account (header row required). Existing vendors are reused; duplicate account numbers are skipped. In Excel, use <b>Save As → CSV</b>.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input id="impFile" type="file" accept=".csv,text/csv"/>
+          <button class="btn ghost sm" id="impTemplate">Download template</button>
+        </div>
+        <div id="impStatus" style="margin-top:8px;font-size:13px"></div>
+      </fieldset>
+
       <div id="vAcctSection" class="hidden">
         <fieldset>
           <legend>Accounts / Services for <span id="vAcctVendor"></span></legend>
@@ -839,6 +849,56 @@ async function saveAccount(){
   toast(aEditingId?"Account updated":"Account added");
   await loadVendors();
   renderAcctList(vEditingId);resetAForm();
+}
+
+/* Bulk CSV import of vendor master */
+if($("impFile"))$("impFile").addEventListener("change",e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{ importVendors(parseCSV(rd.result)); e.target.value=""; };
+  rd.readAsText(f);
+});
+if($("impTemplate"))$("impTemplate").onclick=downloadVendorTemplate;
+function downloadVendorTemplate(){
+  const csv="Vendor Name,Account Number,Service/Label,Description\nPLDT Inc,656986999,Fibr 50 Data Voice,Service Enterprise Fibr 50 Data Voice\nMeralco,1234567890,Electricity,Monthly electric bill\n";
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="vendor_master_template.csv";a.click();URL.revokeObjectURL(a.href);
+}
+function parseCSV(text){
+  const rows=[];let row=[],cur="",inQ=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(inQ){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else inQ=false; } else cur+=ch; }
+    else{ if(ch==='"')inQ=true; else if(ch===","){row.push(cur);cur="";} else if(ch==="\n"){row.push(cur);rows.push(row);row=[];cur="";} else if(ch==="\r"){} else cur+=ch; }
+  }
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  return rows;
+}
+async function importVendors(rows){
+  rows=rows.filter(r=>r.some(c=>(c||"").trim()!==""));
+  if(rows.length<2){$("impStatus").textContent="No data rows found (need a header row + at least one row).";return;}
+  const data=rows.slice(1);
+  const nameToId={},acctSet={};
+  VENDORS.forEach(v=>{nameToId[v.name.trim().toLowerCase()]=v.id;acctSet[v.id]=new Set(v.vendor_accounts.map(a=>(a.account_number||"").trim()).filter(Boolean));});
+  let nv=0,na=0,skipped=0,errs=0;
+  $("impStatus").textContent="Importing…";
+  for(const r of data){
+    const name=(r[0]||"").trim(); if(!name)continue;
+    const acctNum=(r[1]||"").trim(),label=(r[2]||"").trim(),desc=(r[3]||"").trim();
+    let vid=nameToId[name.toLowerCase()];
+    if(!vid){
+      const res=await sb.from("vendors").insert({name,active:true}).select().single();
+      if(res.error){errs++;continue;}
+      vid=res.data.id;nameToId[name.toLowerCase()]=vid;acctSet[vid]=new Set();nv++;
+    }
+    if(acctNum||label||desc){
+      if(acctNum&&acctSet[vid].has(acctNum)){skipped++;}
+      else{
+        const ares=await sb.from("vendor_accounts").insert({vendor_id:vid,account_number:acctNum||null,label:label||null,description:desc||null,active:true}).select().single();
+        if(ares.error)errs++; else {if(acctNum)acctSet[vid].add(acctNum);na++;}
+      }
+    }
+  }
+  $("impStatus").textContent="Done: "+nv+" new vendor(s), "+na+" account(s) added"+(skipped?", "+skipped+" duplicate(s) skipped":"")+(errs?", "+errs+" error(s)":"")+".";
+  await loadVendors();renderVList();
 }
 
 /* ---------- Session restore ---------- */
