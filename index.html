@@ -847,6 +847,8 @@ window.editVendor=function(id){
   $("vName").value=v.name;$("vActive").checked=v.active;$("vErr").textContent="";
   $("vAcctVendor").textContent=v.name;$("vAcctSection").classList.remove("hidden");
   renderAcctList(id);resetAForm();
+  const mb=$("vendorModal").querySelector(".modal-body"); if(mb)mb.scrollTop=0;
+  toast("Editing "+v.name);
 };
 async function saveVendor(){
   $("vErr").textContent="";
