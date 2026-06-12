@@ -845,7 +845,11 @@ function renderVList(){
     <div class="co-row">
       <div class="ci"><b>${esc(v.name)} ${v.active?"":'<span class="pill">inactive</span>'}</b>
       <span>${v.vendor_accounts.length} account(s)</span></div>
-      <button class="btn ghost sm" onclick="editVendor('${v.id}')">Edit</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn ghost sm" onclick="editVendor('${v.id}')">Edit</button>
+        <button class="btn ghost sm" onclick="toggleVendor('${v.id}')">${v.active?"Disable":"Enable"}</button>
+        <button class="btn ghost sm" style="color:var(--red)" onclick="deleteVendor('${v.id}')">Delete</button>
+      </div>
     </div>`).join("")||`<div style="color:var(--muted)">${q?"No vendor matches your search.":"No vendors yet."}</div>`)
     +(total>300?`<div style="color:var(--muted);padding:6px 2px;font-size:13px">Showing first 300 of ${total}${q?" matches":""}. Type to narrow down.</div>`:"");
 }
@@ -857,6 +861,21 @@ window.editVendor=function(id){
   renderAcctList(id);resetAForm();
   const mb=$("vendorModal").querySelector(".modal-body"); if(mb)mb.scrollTop=0;
   toast("Editing "+v.name);
+};
+window.toggleVendor=async function(id){
+  const v=vById(id); if(!v)return;
+  const {error}=await sb.from("vendors").update({active:!v.active}).eq("id",id);
+  if(error){toast(error.message);return;}
+  v.active=!v.active; toast((v.active?"Enabled ":"Disabled ")+v.name);
+  renderVList(); populateVendorSelect();
+};
+window.deleteVendor=async function(id){
+  const v=vById(id); if(!v)return;
+  if(!confirm("Delete vendor "+v.name+" and its accounts? Existing requests keep their payee text but lose the link. This cannot be undone."))return;
+  const {error}=await sb.from("vendors").delete().eq("id",id);
+  if(error){toast(error.message);return;}
+  VENDORS=VENDORS.filter(x=>x.id!==id); toast("Deleted "+v.name);
+  renderVList(); populateVendorSelect();
 };
 async function saveVendor(){
   $("vErr").textContent="";
