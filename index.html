@@ -772,9 +772,15 @@ async function saveCompany(){
 
 /* ---------- Vendor / Payee master ---------- */
 async function loadVendors(){
-  const {data,error}=await sb.from("vendors").select("*,vendor_accounts(*)").order("name");
-  if(error){toast(error.message);return;}
-  VENDORS=(data||[]).map(v=>({...v,vendor_accounts:(v.vendor_accounts||[]).slice().sort((a,b)=>(a.sort_order-b.sort_order)||((a.label||"").localeCompare(b.label||"")))}));
+  let all=[],from=0;const SZ=1000;
+  for(;;){
+    const {data,error}=await sb.from("vendors").select("*,vendor_accounts(*)").order("name").range(from,from+SZ-1);
+    if(error){toast(error.message);break;}
+    all=all.concat(data||[]);
+    if(!data||data.length<SZ)break;
+    from+=SZ;
+  }
+  VENDORS=all.map(v=>({...v,vendor_accounts:(v.vendor_accounts||[]).slice().sort((a,b)=>(a.sort_order-b.sort_order)||((a.label||"").localeCompare(b.label||"")))}));
   populateVendorSelect();
   if(!$("vendorModal").classList.contains("hidden")) renderVList();
 }
@@ -916,7 +922,11 @@ function parseCSV(text){
   if(cur!==""||row.length){row.push(cur);rows.push(row);}
   return rows;
 }
+let _importing=false;
 async function importVendors(rows){
+  if(_importing){return;}
+  _importing=true;
+  try{
   const g=(r,i)=>String(r[i]==null?"":r[i]).trim();
   rows=(rows||[]).filter(r=>Array.isArray(r)&&r.some(c=>String(c==null?"":c).trim()!==""));
   if(!rows.length){$("impStatus").textContent="No rows found in the file.";return;}
@@ -925,12 +935,14 @@ async function importVendors(rows){
   const data=hasHeader?rows.slice(1):rows;
   if(!data.length){$("impStatus").textContent="No data rows found.";return;}
   if(data.length>800 && !confirm(data.length+" rows detected — import them all? Cancel if this is not the right file.")){$("impStatus").textContent="Import cancelled.";return;}
-  $("impStatus").textContent="Importing "+data.length+" rows…";
+  $("impStatus").textContent="Reading existing vendors…";
   const nameToId={},acctSet={};
-  VENDORS.forEach(v=>{nameToId[v.name.trim().toLowerCase()]=v.id;acctSet[v.id]=new Set(v.vendor_accounts.map(a=>(a.account_number||"").trim()).filter(Boolean));});
+  {let from=0;for(;;){const {data:ex,error}=await sb.from("vendors").select("id,name").range(from,from+999);if(error){$("impStatus").textContent="Error reading vendors: "+error.message;return;}(ex||[]).forEach(v=>{nameToId[v.name.trim().toLowerCase()]=v.id;});if(!ex||ex.length<1000)break;from+=1000;}}
+  VENDORS.forEach(v=>{acctSet[v.id]=new Set(v.vendor_accounts.map(a=>(a.account_number||"").trim()).filter(Boolean));});
   const newNames=[],seen={};
   data.forEach(r=>{const n=g(r,0);if(!n)return;const k=n.toLowerCase();if(!nameToId[k]&&!seen[k]){seen[k]=1;newNames.push(n);}});
   let nv=0,na=0,skipped=0,errs=0;
+  $("impStatus").textContent="Importing "+data.length+" rows…";
   for(let i=0;i<newNames.length;i+=500){
     const res=await sb.from("vendors").insert(newNames.slice(i,i+500).map(n=>({name:n,active:true}))).select("id,name");
     if(res.error){errs++;} else {res.data.forEach(v=>{nameToId[v.name.trim().toLowerCase()]=v.id;if(!acctSet[v.id])acctSet[v.id]=new Set();});nv+=res.data.length;}
@@ -950,6 +962,7 @@ async function importVendors(rows){
   }
   $("impStatus").textContent="Done: "+nv+" new vendor(s), "+na+" account(s) added"+(skipped?", "+skipped+" duplicate skipped":"")+(errs?", "+errs+" error batch(es)":"")+".";
   await loadVendors();renderVList();
+  } finally { _importing=false; }
 }
 
 /* ---------- Session restore ---------- */
