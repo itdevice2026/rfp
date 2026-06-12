@@ -872,6 +872,14 @@ window.toggleVendor=async function(id){
 window.deleteVendor=async function(id){
   const v=vById(id); if(!v)return;
   if(!confirm("Delete vendor "+v.name+" and its accounts? Existing requests keep their payee text but lose the link. This cannot be undone."))return;
+  const pw=prompt("Admin password required to delete "+v.name+":");
+  if(pw===null)return;
+  if(!pw){toast("Password required — delete cancelled.");return;}
+  const {data:{user}}=await sb.auth.getUser();
+  if(!user||!user.email){toast("Could not verify your session.");return;}
+  toast("Verifying password…");
+  const {error:authErr}=await sb.auth.signInWithPassword({email:user.email,password:pw});
+  if(authErr){toast("Incorrect password — delete cancelled.");return;}
   const {error}=await sb.from("vendors").delete().eq("id",id);
   if(error){toast(error.message);return;}
   VENDORS=VENDORS.filter(x=>x.id!==id); toast("Deleted "+v.name);
