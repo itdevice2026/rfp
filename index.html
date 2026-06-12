@@ -217,6 +217,7 @@
         <option value="cancelled">Cancelled</option>
       </select>
       <button class="btn ghost sm" id="refreshBtn">Refresh</button>
+      <button class="btn sm" id="reportBtn">📄 Report</button>
     </div>
     <div class="card">
       <table>
@@ -391,6 +392,35 @@
       </fieldset>
     </div>
     <div class="modal-foot"><button class="btn ghost sm" id="vClose2">Close</button></div>
+  </div>
+</div>
+
+<!-- REPORT MODAL -->
+<div class="overlay hidden" id="reportModal">
+  <div class="modal" style="width:560px">
+    <div class="modal-head"><h2>Generate Report</h2><button class="x" id="repClose">×</button></div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>From date</label><input id="repFrom" type="date"/></div>
+        <div class="field"><label>To date</label><input id="repTo" type="date"/></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Company</label><select id="repCo"></select></div>
+        <div class="field"><label>Status</label><select id="repStatus">
+          <option value="">All statuses</option>
+          <option value="draft">Draft</option><option value="submitted">Submitted</option>
+          <option value="checked">Checked</option><option value="approved">Approved</option>
+          <option value="paid">Paid</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option>
+        </select></div>
+      </div>
+      <div id="repCount" style="color:var(--muted);font-size:13px;margin-top:6px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ok" id="repExcel">⬇ Export Excel</button>
+      <button class="btn blue" id="repPDF">🖨 Export PDF</button>
+      <div style="flex:1"></div>
+      <button class="btn ghost" id="repClose2">Close</button>
+    </div>
   </div>
 </div>
 
@@ -1016,6 +1046,72 @@ async function importVendors(rows){
   $("impStatus").textContent="Done: "+nv+" new vendor(s), "+na+" account(s) added"+(skipped?", "+skipped+" duplicate skipped":"")+(errs?", "+errs+" error batch(es)":"")+".";
   await loadVendors();renderVList();
   } finally { _importing=false; }
+}
+
+/* ---------- Reports (date range -> Excel / PDF) ---------- */
+$("reportBtn").onclick=openReport;
+$("repClose").onclick=$("repClose2").onclick=()=>$("reportModal").classList.add("hidden");
+$("repExcel").onclick=exportReportExcel;
+$("repPDF").onclick=exportReportPDF;
+["repFrom","repTo","repCo","repStatus"].forEach(id=>{const e=$(id);if(e)e.onchange=updateRepCount;});
+function openReport(){
+  $("repCo").innerHTML=`<option value="">All companies</option>`+COMPANIES.filter(c=>c.active).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  updateRepCount();
+  $("reportModal").classList.remove("hidden");
+}
+function reportRows(){
+  const from=$("repFrom").value, to=$("repTo").value, co=$("repCo").value, st=$("repStatus").value;
+  return DATA.filter(r=>{
+    if(co&&r.company_id!==co)return false;
+    if(st&&r.status!==st)return false;
+    const d=r.request_date||"";
+    if(from&&d<from)return false;
+    if(to&&d>to)return false;
+    return true;
+  }).sort((a,b)=>(a.request_date||"").localeCompare(b.request_date||"")||(a.rfp_number||"").localeCompare(b.rfp_number||""));
+}
+function updateRepCount(){
+  const rows=reportRows();
+  $("repCount").textContent=rows.length+" request(s) · Total "+PHP(rows.reduce((a,r)=>a+Number(r.amount||0),0));
+}
+function exportReportExcel(){
+  if(typeof XLSX==="undefined"){toast("Excel library not loaded.");return;}
+  const rows=reportRows();
+  const aoa=[["RFP No.","Company","Date","Payee","Description","Account No.","Service Type","Amount","Method","Status"]];
+  rows.forEach(r=>{const c=coById(r.company_id);aoa.push([r.rfp_number||"",c?c.code:"",fdate(r.request_date),r.payee||"",r.description||"",r.account_no||"",r.service_type||"",Number(r.amount||0),PM[r.payment_method]||r.payment_method,r.status]);});
+  aoa.push([]); aoa.push(["","","","","","","TOTAL",rows.reduce((a,r)=>a+Number(r.amount||0),0),"",""]);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"RFP Report");
+  const f=$("repFrom").value||"all", t=$("repTo").value||"all";
+  XLSX.writeFile(wb,"RFP_Report_"+f+"_to_"+t+".xlsx");
+  toast("Excel exported ("+rows.length+" rows)");
+}
+function exportReportPDF(){
+  const rows=reportRows();
+  const from=$("repFrom").value||"—", to=$("repTo").value||"—";
+  const coName=$("repCo").value?((coById($("repCo").value)||{}).name||"") :"All companies";
+  const total=rows.reduce((a,r)=>a+Number(r.amount||0),0);
+  const body=rows.map(r=>{const c=coById(r.company_id);return `<tr>
+    <td>${esc(r.rfp_number||"")}</td><td>${esc(c?c.code:"")}</td><td style="white-space:nowrap">${fdate(r.request_date)}</td>
+    <td>${esc(r.payee||"")}</td><td>${esc(r.description||"")}</td><td>${esc(r.account_no||"")}</td>
+    <td>${esc(r.service_type||"")}</td><td style="text-align:right;white-space:nowrap">${PHP(r.amount)}</td><td>${PM[r.payment_method]||r.payment_method}</td><td style="text-transform:capitalize">${esc(r.status)}</td></tr>`;}).join("");
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>RFP Report</title>
+  <style>body{font-family:Arial,Helvetica,sans-serif;margin:16px;color:#111}
+  h1{font-size:17px;margin:0}.sub{color:#555;font-size:12px;margin:3px 0 12px}
+  table{width:100%;border-collapse:collapse;font-size:10.5px}
+  th,td{border:1px solid #c9ced6;padding:4px 6px;text-align:left;vertical-align:top}
+  th{background:#eef1f5}tfoot td{font-weight:bold;background:#fafafa}
+  @page{size:A4 landscape;margin:9mm}</style></head><body>
+  <h1>REQUEST FOR PAYMENT — REPORT</h1>
+  <div class="sub">Period: <b>${from}</b> to <b>${to}</b> &nbsp;·&nbsp; ${esc(coName)} &nbsp;·&nbsp; ${rows.length} request(s) &nbsp;·&nbsp; Generated ${new Date().toLocaleString("en-PH")}</div>
+  <table><thead><tr><th>RFP No.</th><th>Co.</th><th>Date</th><th>Payee</th><th>Description</th><th>Account No.</th><th>Service Type</th><th style="text-align:right">Amount</th><th>Method</th><th>Status</th></tr></thead>
+  <tbody>${body||'<tr><td colspan="10" style="text-align:center;color:#888">No records in range</td></tr>'}</tbody>
+  <tfoot><tr><td colspan="7" style="text-align:right">TOTAL</td><td style="text-align:right">${PHP(total)}</td><td colspan="2"></td></tr></tfoot>
+  </table></body></html>`;
+  const w=window.open("","_blank");
+  if(!w){toast("Allow pop-ups to export PDF.");return;}
+  w.document.write(html); w.document.close(); w.focus();
+  setTimeout(()=>{try{w.print();}catch(e){}},400);
 }
 
 /* ---------- Session restore ---------- */
