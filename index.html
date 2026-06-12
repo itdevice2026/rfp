@@ -326,7 +326,7 @@
         <legend id="coFormTitle">Add Company</legend>
         <div class="grid3">
           <div class="field"><label>Code *</label><input id="coCode" placeholder="e.g. ABC"/></div>
-          <div class="field"><label>RFP Prefix *</label><input id="coPrefix" placeholder="e.g. RFPABC"/></div>
+          <div class="field"><label>RFP Prefix (auto)</label><input id="coPrefix" readonly placeholder="RFP + code"/></div>
           <div class="field"><label>Next number</label><input id="coNext" type="number" value="1"/></div>
         </div>
         <div class="field"><label>Company Name *</label><input id="coName" placeholder="e.g. ABC TRADING CORPORATION"/></div>
@@ -733,6 +733,7 @@ $("companiesBtn").onclick=openCompanies;
 $("coClose").onclick=$("coClose2").onclick=()=>$("companyModal").classList.add("hidden");
 $("coReset").onclick=()=>resetCoForm();
 $("coSave").onclick=saveCompany;
+$("coCode").addEventListener("input",()=>{$("coPrefix").value="RFP"+$("coCode").value.trim().toUpperCase();});
 $("coLogo").addEventListener("change",e=>{
   const f=e.target.files[0];
   if(!f){return;}
@@ -769,10 +770,10 @@ window.editCo=function(id){
 async function saveCompany(){
   $("coErr").textContent="";
   const code=$("coCode").value.trim().toUpperCase();
-  const prefix=$("coPrefix").value.trim();
   const name=$("coName").value.trim();
   const next_num=parseInt($("coNext").value||"1",10);
-  if(!code||!prefix||!name){$("coErr").textContent="Code, prefix and name are required.";return;}
+  if(!code||!name){$("coErr").textContent="Code and name are required.";return;}
+  const prefix="RFP"+code; $("coPrefix").value=prefix;
   const payload={code,rfp_prefix:prefix,name,next_num:isNaN(next_num)?1:next_num,active:$("coActive").checked};
   if(coLogoData!==undefined)payload.logo=coLogoData; // new image or cleared
   $("coSave").disabled=true;$("coSave").textContent="Saving…";
