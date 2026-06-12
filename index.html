@@ -186,6 +186,7 @@
 
 <div id="app" class="hidden">
   <header class="top">
+    <div class="mtclogo" style="width:50px;height:38px"></div>
     <div class="logostrip sm" id="headerLogos"></div>
     <div class="sub" style="font-size:10px;letter-spacing:1.2px;color:var(--muted);line-height:1.3;font-weight:700">REQUEST FOR<br>PAYMENT</div>
     <nav class="tabs">
@@ -467,7 +468,7 @@ function populateCompanySelects(){
   $("fCo").value=cur;
 }
 function companyLogoStrip(){
-  return COMPANIES.filter(c=>c.active).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>
+  return COMPANIES.filter(c=>c.active && c.code!=="MTC").slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>
     `<span class="lc" title="${esc(c.name)}">`+(c.logo?`<img src="${c.logo}" alt="${esc(c.name)}">`:`<span class="pill">${esc(c.code)}</span>`)+`</span>`
   ).join("");
 }
