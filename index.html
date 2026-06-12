@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>MEATPLUS · Request for Payment System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --red:#c0322b; --red-d:#9c241f; --ink:#1c2430; --muted:#6b7686;
@@ -355,9 +356,9 @@
 
       <fieldset>
         <legend>Bulk Import (CSV / Excel)</legend>
-        <p style="margin:0 0 8px;color:var(--muted);font-size:13px">Columns in order: <b>Vendor Name, Account Number, Service/Label, Description</b> — one row per account (header row required). Existing vendors are reused; duplicate account numbers are skipped. In Excel, use <b>Save As → CSV</b>.</p>
+        <p style="margin:0 0 8px;color:var(--muted);font-size:13px">Upload an <b>Excel (.xlsx)</b> or <b>CSV</b> file. Columns in order: <b>Vendor Name, Account Number, Service/Label, Description</b> — one row per account (first row = headers). Existing vendors are reused; duplicate account numbers are skipped.</p>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <input id="impFile" type="file" accept=".csv,text/csv"/>
+          <input id="impFile" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
           <button class="btn ghost sm" id="impTemplate">Download template</button>
           <button class="btn ghost sm" id="impExport">Export current vendors</button>
         </div>
@@ -874,9 +875,22 @@ async function saveAccount(){
 /* Bulk CSV import of vendor master */
 if($("impFile"))$("impFile").addEventListener("change",e=>{
   const f=e.target.files[0]; if(!f)return;
+  $("impStatus").textContent="Reading file…";
   const rd=new FileReader();
-  rd.onload=()=>{ importVendors(parseCSV(rd.result)); e.target.value=""; };
-  rd.readAsText(f);
+  rd.onload=()=>{
+    let rows;
+    try{
+      if(typeof XLSX!=="undefined"){
+        const wb=XLSX.read(new Uint8Array(rd.result),{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""});
+      }else{
+        rows=parseCSV(new TextDecoder().decode(rd.result));
+      }
+    }catch(err){ $("impStatus").textContent="Could not read the file ("+(err&&err.message||err)+"). Make sure it's an .xlsx or .csv."; e.target.value=""; return; }
+    importVendors(rows); e.target.value="";
+  };
+  rd.readAsArrayBuffer(f);
 });
 if($("impTemplate"))$("impTemplate").onclick=downloadVendorTemplate;
 if($("impExport"))$("impExport").onclick=exportVendors;
@@ -903,16 +917,18 @@ function parseCSV(text){
   return rows;
 }
 async function importVendors(rows){
-  rows=rows.filter(r=>r.some(c=>(c||"").trim()!==""));
-  if(rows.length<2){$("impStatus").textContent="No data rows found (need a header row + at least one row).";return;}
+  rows=(rows||[]).filter(r=>Array.isArray(r)&&r.some(c=>String(c==null?"":c).trim()!==""));
+  if(rows.length<2){$("impStatus").textContent="No data rows found (need a header row + at least one data row).";return;}
   const data=rows.slice(1);
+  if(data.length>800 && !confirm(data.length+" data rows detected — import them all? Cancel if this is not the right file.")){$("impStatus").textContent="Import cancelled.";return;}
+  const g=(r,i)=>String(r[i]==null?"":r[i]).trim();
   const nameToId={},acctSet={};
   VENDORS.forEach(v=>{nameToId[v.name.trim().toLowerCase()]=v.id;acctSet[v.id]=new Set(v.vendor_accounts.map(a=>(a.account_number||"").trim()).filter(Boolean));});
   let nv=0,na=0,skipped=0,errs=0;
   $("impStatus").textContent="Importing…";
   for(const r of data){
-    const name=(r[0]||"").trim(); if(!name)continue;
-    const acctNum=(r[1]||"").trim(),label=(r[2]||"").trim(),desc=(r[3]||"").trim();
+    const name=g(r,0); if(!name)continue;
+    const acctNum=g(r,1),label=g(r,2),desc=g(r,3);
     let vid=nameToId[name.toLowerCase()];
     if(!vid){
       const res=await sb.from("vendors").insert({name,active:true}).select().single();
