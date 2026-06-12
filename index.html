@@ -47,10 +47,12 @@
   .who{text-align:right;font-size:12px}
   .who b{display:block;font-size:13px}
   .role-pill{display:inline-block;background:var(--soft);border:1px solid var(--line);border-radius:20px;padding:1px 9px;font-size:11px;color:var(--muted);margin-top:2px}
-  .logostrip{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:center;margin:2px 0 16px}
-  .logostrip img{height:34px;max-width:86px;object-fit:contain}
-  .logostrip.sm{flex-wrap:nowrap;gap:12px;margin:0;justify-content:flex-start}
-  .logostrip.sm img{height:26px;max-width:58px}
+  .logostrip{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;justify-content:center;margin:6px 0 16px}
+  .logostrip .lc{width:92px;height:48px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px}
+  .logostrip .lc img{max-width:100%;max-height:100%;object-fit:contain}
+  .logostrip .lc .pill{font-size:11px}
+  .logostrip.sm{flex-wrap:nowrap;gap:6px;margin:0;justify-content:flex-start}
+  .logostrip.sm .lc{width:54px;height:34px;border:none;background:transparent;padding:0}
   main{max-width:1180px;margin:0 auto;padding:22px}
 
   .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
@@ -466,7 +468,7 @@ function populateCompanySelects(){
 }
 function companyLogoStrip(){
   return COMPANIES.filter(c=>c.active).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(c=>
-    c.logo?`<img src="${c.logo}" alt="${esc(c.name)}" title="${esc(c.name)}">`:`<span class="pill" title="${esc(c.name)}">${esc(c.code)}</span>`
+    `<span class="lc" title="${esc(c.name)}">`+(c.logo?`<img src="${c.logo}" alt="${esc(c.name)}">`:`<span class="pill">${esc(c.code)}</span>`)+`</span>`
   ).join("");
 }
 function renderCompanyStrips(){
