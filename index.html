@@ -557,8 +557,8 @@ function openForm(r){
   set("fDue",r?.due_date);set("fRfp",r?.rfp_number);set("fPayee",r?.payee);
   set("fAmount",r?r.amount:"");set("fDesc",r?.description);set("fLoc",r?.location);
   set("fPeriodFrom",r?.period_from);set("fPeriodTo",r?.period_to);set("fAcct",r?.account_no);set("fService",r?.service_type);
-  set("fReqBy",r?r.requested_by:ME.name);set("fChk1",r?.checked_by_1);set("fChk2",r?.checked_by_2);
-  set("fApr1",r?.approved_by_1);set("fApr2",r?.approved_by_2);
+  set("fReqBy",r?r.requested_by:ME.name);set("fChk1",r?r.checked_by_1:"Nomer Sta Ana");set("fChk2",r?r.checked_by_2:"Ma. Rosalie Bolea");
+  set("fApr1",r?r.approved_by_1:"Fritz Daniel Martinez");set("fApr2",r?r.approved_by_2:"Ma. Olivia D. Martinez");
   set("fApv",r?.apv_no);set("fCv",r?.cv_no);set("fBank",r?.bank);set("pmOther",r?.payment_method_other);
   const pm=r?r.payment_method:"regular_check";
   document.querySelectorAll('input[name=pm]').forEach(i=>i.checked=(i.value===pm));
