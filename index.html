@@ -351,6 +351,7 @@
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <input id="impFile" type="file" accept=".csv,text/csv"/>
           <button class="btn ghost sm" id="impTemplate">Download template</button>
+          <button class="btn ghost sm" id="impExport">Export current vendors</button>
         </div>
         <div id="impStatus" style="margin-top:8px;font-size:13px"></div>
       </fieldset>
@@ -859,6 +860,16 @@ if($("impFile"))$("impFile").addEventListener("change",e=>{
   rd.readAsText(f);
 });
 if($("impTemplate"))$("impTemplate").onclick=downloadVendorTemplate;
+if($("impExport"))$("impExport").onclick=exportVendors;
+function csvCell(s){s=s==null?"":String(s);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function exportVendors(){
+  const lines=["Vendor Name,Account Number,Service/Label,Description"];
+  VENDORS.forEach(v=>{
+    if(!v.vendor_accounts.length){lines.push([csvCell(v.name),"","",""].join(","));}
+    else v.vendor_accounts.forEach(a=>{lines.push([csvCell(v.name),csvCell(a.account_number),csvCell(a.label),csvCell(a.description)].join(","));});
+  });
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([lines.join("\n")],{type:"text/csv"}));a.download="vendor_master.csv";a.click();URL.revokeObjectURL(a.href);
+}
 function downloadVendorTemplate(){
   const csv="Vendor Name,Account Number,Service/Label,Description\nPLDT Inc,656986999,Fibr 50 Data Voice,Service Enterprise Fibr 50 Data Voice\nMeralco,1234567890,Electricity,Monthly electric bill\n";
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="vendor_master_template.csv";a.click();URL.revokeObjectURL(a.href);
