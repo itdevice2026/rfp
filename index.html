@@ -917,33 +917,38 @@ function parseCSV(text){
   return rows;
 }
 async function importVendors(rows){
-  rows=(rows||[]).filter(r=>Array.isArray(r)&&r.some(c=>String(c==null?"":c).trim()!==""));
-  if(rows.length<2){$("impStatus").textContent="No data rows found (need a header row + at least one data row).";return;}
-  const data=rows.slice(1);
-  if(data.length>800 && !confirm(data.length+" data rows detected — import them all? Cancel if this is not the right file.")){$("impStatus").textContent="Import cancelled.";return;}
   const g=(r,i)=>String(r[i]==null?"":r[i]).trim();
+  rows=(rows||[]).filter(r=>Array.isArray(r)&&r.some(c=>String(c==null?"":c).trim()!==""));
+  if(!rows.length){$("impStatus").textContent="No rows found in the file.";return;}
+  const HK=["vendor name","vendor","payee","name","account number","account","account no","account no.","description","service/label","label","service"];
+  const hasHeader=(rows[0]||[]).some(c=>HK.includes(String(c==null?"":c).trim().toLowerCase()));
+  const data=hasHeader?rows.slice(1):rows;
+  if(!data.length){$("impStatus").textContent="No data rows found.";return;}
+  if(data.length>800 && !confirm(data.length+" rows detected — import them all? Cancel if this is not the right file.")){$("impStatus").textContent="Import cancelled.";return;}
+  $("impStatus").textContent="Importing "+data.length+" rows…";
   const nameToId={},acctSet={};
   VENDORS.forEach(v=>{nameToId[v.name.trim().toLowerCase()]=v.id;acctSet[v.id]=new Set(v.vendor_accounts.map(a=>(a.account_number||"").trim()).filter(Boolean));});
+  const newNames=[],seen={};
+  data.forEach(r=>{const n=g(r,0);if(!n)return;const k=n.toLowerCase();if(!nameToId[k]&&!seen[k]){seen[k]=1;newNames.push(n);}});
   let nv=0,na=0,skipped=0,errs=0;
-  $("impStatus").textContent="Importing…";
-  for(const r of data){
-    const name=g(r,0); if(!name)continue;
-    const acctNum=g(r,1),label=g(r,2),desc=g(r,3);
-    let vid=nameToId[name.toLowerCase()];
-    if(!vid){
-      const res=await sb.from("vendors").insert({name,active:true}).select().single();
-      if(res.error){errs++;continue;}
-      vid=res.data.id;nameToId[name.toLowerCase()]=vid;acctSet[vid]=new Set();nv++;
-    }
-    if(acctNum||label||desc){
-      if(acctNum&&acctSet[vid].has(acctNum)){skipped++;}
-      else{
-        const ares=await sb.from("vendor_accounts").insert({vendor_id:vid,account_number:acctNum||null,label:label||null,description:desc||null,active:true}).select().single();
-        if(ares.error)errs++; else {if(acctNum)acctSet[vid].add(acctNum);na++;}
-      }
-    }
+  for(let i=0;i<newNames.length;i+=500){
+    const res=await sb.from("vendors").insert(newNames.slice(i,i+500).map(n=>({name:n,active:true}))).select("id,name");
+    if(res.error){errs++;} else {res.data.forEach(v=>{nameToId[v.name.trim().toLowerCase()]=v.id;if(!acctSet[v.id])acctSet[v.id]=new Set();});nv+=res.data.length;}
   }
-  $("impStatus").textContent="Done: "+nv+" new vendor(s), "+na+" account(s) added"+(skipped?", "+skipped+" duplicate(s) skipped":"")+(errs?", "+errs+" error(s)":"")+".";
+  const accts=[];
+  data.forEach(r=>{
+    const n=g(r,0);if(!n)return;const vid=nameToId[n.toLowerCase()];if(!vid)return;
+    const acctNum=g(r,1),label=g(r,2),desc=g(r,3);
+    if(!(acctNum||label||desc))return;
+    if(acctNum&&acctSet[vid]&&acctSet[vid].has(acctNum)){skipped++;return;}
+    if(acctNum&&acctSet[vid])acctSet[vid].add(acctNum);
+    accts.push({vendor_id:vid,account_number:acctNum||null,label:label||null,description:desc||null,active:true});
+  });
+  for(let i=0;i<accts.length;i+=500){
+    const res=await sb.from("vendor_accounts").insert(accts.slice(i,i+500)).select("id");
+    if(res.error){errs++;} else {na+=res.data.length;}
+  }
+  $("impStatus").textContent="Done: "+nv+" new vendor(s), "+na+" account(s) added"+(skipped?", "+skipped+" duplicate skipped":"")+(errs?", "+errs+" error batch(es)":"")+".";
   await loadVendors();renderVList();
 }
 
