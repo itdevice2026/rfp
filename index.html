@@ -250,7 +250,7 @@
 <!-- FORM MODAL -->
 <div class="overlay hidden" id="formModal">
   <div class="modal">
-    <div class="modal-head"><h2 id="formTitle">New Request for Payment</h2><button class="x" id="formClose">×</button></div>
+    <div class="modal-head"><h2 id="formTitle">New Request for Payment</h2><div id="formCoLogo" style="width:50px;height:38px;flex:none"></div><button class="x" id="formClose">×</button></div>
     <div class="modal-body">
       <div class="grid2">
         <div class="field"><label>Company *</label><select id="fCompany"></select></div>
@@ -620,6 +620,19 @@ $("newBtn").onclick=()=>openForm(null);
 $("formClose").onclick=$("formCancel").onclick=()=>$("formModal").classList.add("hidden");
 $("saveBtn").onclick=saveForm;
 
+function showCompanyLogo(){
+  const coId=$("fCompany").value;
+  const co=COMPANIES.find(c=>c.id===coId);
+  const logoDiv=$("formCoLogo");
+  if(co&&co.logo){
+    logoDiv.style.backgroundImage=`url(${co.logo})`;
+    logoDiv.style.backgroundRepeat="no-repeat";
+    logoDiv.style.backgroundPosition="center";
+    logoDiv.style.backgroundSize="contain";
+  }else{
+    logoDiv.style.backgroundImage="none";
+  }
+}
 function openForm(r){
   if(!COMPANIES.filter(c=>c.active).length){toast("Add a company first (Companies button).");return;}
   editingId=r?r.id:null;
@@ -627,6 +640,8 @@ function openForm(r){
   $("formErr").textContent="";
   const set=(id,v)=>$(id).value=v||"";
   $("fCompany").value=(r&&r.company_id)?r.company_id:(COMPANIES.filter(c=>c.active)[0]||{}).id||"";
+  $("fCompany").onchange=showCompanyLogo;
+  showCompanyLogo();
   setVendorOnForm(r&&r.vendor_id?r.vendor_id:"", r&&r.vendor_account_id?r.vendor_account_id:"");
   set("fDate",r?r.request_date:new Date().toISOString().slice(0,10));
   set("fDue",r?.due_date);set("fRfp",r?.rfp_number);set("fPayee",r?.payee);
