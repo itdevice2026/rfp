@@ -353,10 +353,13 @@
         <legend id="coFormTitle">Add Company</legend>
         <div class="grid3">
           <div class="field"><label>Code *</label><input id="coCode" placeholder="e.g. ABC"/></div>
+          <div class="field"><label>Account Number</label><input id="coAccount" placeholder="e.g. A-001"/></div>
           <div class="field"><label>RFP Prefix (auto)</label><input id="coPrefix" readonly placeholder="RFP + code"/></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Company Name *</label><input id="coName" placeholder="e.g. ABC TRADING CORPORATION"/></div>
           <div class="field"><label>Next number</label><input id="coNext" type="number" value="1"/></div>
         </div>
-        <div class="field"><label>Company Name *</label><input id="coName" placeholder="e.g. ABC TRADING CORPORATION"/></div>
         <div class="field"><label>Logo (PNG/JPG, optional)</label><input id="coLogo" type="file" accept="image/*"/><div id="coLogoPrev" style="margin-top:8px"></div></div>
         <div class="field" style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="coActive" checked style="width:auto"/> <label style="margin:0">Active</label></div>
         <div class="err" id="coErr"></div>
@@ -907,7 +910,7 @@ function openCompanies(){resetCoForm();renderCoList();$("companyModal").classLis
 function resetCoForm(){
   coEditingId=null;coLogoData=undefined;
   $("coFormTitle").textContent="Add Company";
-  $("coCode").value="";$("coPrefix").value="";$("coNext").value="1";$("coName").value="";
+  $("coCode").value="";$("coPrefix").value="";$("coAccount").value="";$("coNext").value="1";$("coName").value="";
   $("coLogo").value="";$("coLogoPrev").innerHTML="";$("coActive").checked=true;$("coErr").textContent="";
 }
 function renderCoList(){
@@ -915,7 +918,7 @@ function renderCoList(){
     <div class="co-row">
       ${c.logo?`<img src="${c.logo}">`:`<div class="noimg">no logo</div>`}
       <div class="ci"><b>${esc(c.name)} ${c.active?"":'<span class="pill">inactive</span>'}</b>
-      <span>Code ${esc(c.code)} · Prefix ${esc(c.rfp_prefix)} · Next ${c.next_num}</span></div>
+      <span>Code ${esc(c.code)} · Acct ${esc(c.account_number||"—")} · Prefix ${esc(c.rfp_prefix)} · Next ${c.next_num}</span></div>
       <button class="btn ghost sm" onclick="editCo('${c.id}')">Edit</button>
     </div>`).join("")||`<div style="color:var(--muted)">No companies yet.</div>`;
 }
@@ -923,7 +926,7 @@ window.editCo=function(id){
   const c=coById(id);if(!c)return;
   coEditingId=id;coLogoData=undefined;
   $("coFormTitle").textContent="Edit "+c.name;
-  $("coCode").value=c.code;$("coPrefix").value=c.rfp_prefix;$("coNext").value=c.next_num;
+  $("coCode").value=c.code;$("coPrefix").value=c.rfp_prefix;$("coAccount").value=c.account_number||"";$("coNext").value=c.next_num;
   $("coName").value=c.name;$("coActive").checked=c.active;
   $("coLogo").value="";$("coLogoPrev").innerHTML=c.logo?`<img src="${c.logo}" style="height:48px;border:1px solid var(--line);border-radius:6px;padding:2px;background:#fff">`:"";
   $("coErr").textContent="";
@@ -932,11 +935,12 @@ window.editCo=function(id){
 async function saveCompany(){
   $("coErr").textContent="";
   const code=$("coCode").value.trim().toUpperCase();
+  const account_number=$("coAccount").value.trim();
   const name=$("coName").value.trim();
   const next_num=parseInt($("coNext").value||"1",10);
   if(!code||!name){$("coErr").textContent="Code and name are required.";return;}
   const prefix="RFP"+code; $("coPrefix").value=prefix;
-  const payload={code,rfp_prefix:prefix,name,next_num:isNaN(next_num)?1:next_num,active:$("coActive").checked};
+  const payload={code,rfp_prefix:prefix,name,account_number:account_number||null,next_num:isNaN(next_num)?1:next_num,active:$("coActive").checked};
   if(coLogoData!==undefined)payload.logo=coLogoData; // new image or cleared
   $("coSave").disabled=true;$("coSave").textContent="Saving…";
   let res;
@@ -1247,7 +1251,7 @@ function exportReportPDF(){
 
 /* ---------- Session restore ---------- */
 (async()=>{
-  try{const {data}=await sb.from("companies").select("id,code,name,logo,active,sort_order").eq("active",true).order("sort_order");if(data&&data.length){COMPANIES=data;renderCompanyStrips();}}catch(e){}
+  try{const {data}=await sb.from("companies").select("id,code,name,logo,account_number,active,sort_order").eq("active",true).order("sort_order");if(data&&data.length){COMPANIES=data;renderCompanyStrips();}}catch(e){}
   const {data:{session}}=await sb.auth.getSession();if(session)await boot();
 })();
 </script>
