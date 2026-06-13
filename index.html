@@ -382,6 +382,11 @@
           <div class="field"><label>Vendor / Payee Name *</label><input id="vName"/></div>
           <div class="field" style="display:flex;align-items:flex-end;gap:8px"><input type="checkbox" id="vActive" checked style="width:auto"/> <label style="margin:0 0 10px">Active</label></div>
         </div>
+        <div class="grid3">
+          <div class="field"><label>Account Number</label><input id="vAcctNum" placeholder="e.g. 656986999"/></div>
+          <div class="field"><label>Service / Label</label><input id="vAcctLabel" placeholder="e.g. Fibr 50 Data Voice"/></div>
+          <div class="field"><label>Description</label><input id="vAcctDesc" placeholder="e.g. Enterprise service"/></div>
+        </div>
         <div class="err" id="vErr"></div>
         <button class="btn sm" id="vSave">Save Vendor</button>
         <button class="btn ghost sm" id="vReset">Clear</button>
@@ -976,7 +981,14 @@ function populateVendorSelect(){
 function fillAccountSelect(vid, selId){
   const v=vById(vid);
   const accts=v?v.vendor_accounts.filter(a=>a.active):[];
-  $("fVAcct").innerHTML=`<option value="">— Select account / service —</option>`+accts.map(a=>`<option value="${a.id}">${esc(a.label||a.account_number||a.description||"account")}${a.account_number?" · "+esc(a.account_number):""}</option>`).join("");
+  $("fVAcct").innerHTML=`<option value="">— Select account / service —</option>`+accts.map(a=>{
+    let txt="";
+    if(a.account_number)txt=esc(a.account_number);
+    if(a.label){txt?txt+=" - "+esc(a.label):txt=esc(a.label);}
+    if(a.description){txt?txt+=" · "+esc(a.description):txt=esc(a.description);}
+    if(!txt)txt="(account)";
+    return `<option value="${a.id}">${txt}</option>`;
+  }).join("");
   if(selId)$("fVAcct").value=selId;
 }
 function setVendorOnForm(vid, aid){ $("fVendor").value=vid||""; fillAccountSelect(vid||"", aid||""); }
@@ -1000,7 +1012,7 @@ $("aReset").onclick=()=>resetAForm();
 $("aSave").onclick=saveAccount;
 if($("vSearch"))$("vSearch").oninput=renderVList;
 function openVendors(){resetVForm();if($("vSearch"))$("vSearch").value="";renderVList();$("vendorModal").classList.remove("hidden");}
-function resetVForm(){vEditingId=null;$("vFormTitle").textContent="Add Vendor";$("vName").value="";$("vActive").checked=true;$("vErr").textContent="";$("vAcctSection").classList.add("hidden");resetAForm();}
+function resetVForm(){vEditingId=null;$("vFormTitle").textContent="Add Vendor";$("vName").value="";$("vAcctNum").value="";$("vAcctLabel").value="";$("vAcctDesc").value="";$("vActive").checked=true;$("vErr").textContent="";$("vAcctSection").classList.add("hidden");resetAForm();}
 function renderVList(){
   const q=($("vSearch")?$("vSearch").value:"").toLowerCase().trim();
   let list=q?VENDORS.filter(v=>(v.name||"").toLowerCase().includes(q)):VENDORS;
@@ -1061,9 +1073,15 @@ async function saveVendor(){
   else res=await sb.from("vendors").insert(payload).select().single();
   $("vSave").disabled=false;$("vSave").textContent="Save Vendor";
   if(res.error){$("vErr").textContent=res.error.message;return;}
+  const vidToUse=vEditingId||res.data.id;
+  const acctNum=$("vAcctNum").value.trim();
+  if(acctNum){
+    const aPayload={vendor_id:vidToUse,account_number:acctNum||null,label:$("vAcctLabel").value.trim()||null,description:$("vAcctDesc").value.trim()||null,active:true};
+    await sb.from("vendor_accounts").insert(aPayload);
+  }
   toast(vEditingId?"Vendor updated":"Vendor added");
   await loadVendors();
-  editVendor(res.data.id);
+  editVendor(vidToUse);
 }
 function renderAcctList(vid){
   const v=vById(vid);const accts=v?v.vendor_accounts:[];
