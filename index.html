@@ -382,7 +382,7 @@
           <div class="field"><label>Vendor / Payee Name *</label><input id="vName"/></div>
           <div class="field" style="display:flex;align-items:flex-end;gap:8px"><input type="checkbox" id="vActive" checked style="width:auto"/> <label style="margin:0 0 10px">Active</label></div>
         </div>
-        <div class="grid3">
+        <div id="vAcctCreateSection" class="grid3">
           <div class="field"><label>Account Number</label><input id="vAcctNum" placeholder="e.g. 656986999"/></div>
           <div class="field"><label>Service / Label</label><input id="vAcctLabel" placeholder="e.g. Fibr 50 Data Voice"/></div>
           <div class="field"><label>Description</label><input id="vAcctDesc" placeholder="e.g. Enterprise service"/></div>
@@ -1012,7 +1012,7 @@ $("aReset").onclick=()=>resetAForm();
 $("aSave").onclick=saveAccount;
 if($("vSearch"))$("vSearch").oninput=renderVList;
 function openVendors(){resetVForm();if($("vSearch"))$("vSearch").value="";renderVList();$("vendorModal").classList.remove("hidden");}
-function resetVForm(){vEditingId=null;$("vFormTitle").textContent="Add Vendor";$("vName").value="";$("vAcctNum").value="";$("vAcctLabel").value="";$("vAcctDesc").value="";$("vActive").checked=true;$("vErr").textContent="";$("vAcctSection").classList.add("hidden");resetAForm();}
+function resetVForm(){vEditingId=null;$("vFormTitle").textContent="Add Vendor";$("vName").value="";$("vAcctNum").value="";$("vAcctLabel").value="";$("vAcctDesc").value="";$("vActive").checked=true;$("vErr").textContent="";$("vAcctCreateSection").classList.remove("hidden");$("vAcctSection").classList.add("hidden");resetAForm();}
 function renderVList(){
   const q=($("vSearch")?$("vSearch").value:"").toLowerCase().trim();
   let list=q?VENDORS.filter(v=>(v.name||"").toLowerCase().includes(q)):VENDORS;
@@ -1034,6 +1034,7 @@ window.editVendor=function(id){
   const v=vById(id);if(!v)return;
   vEditingId=id;$("vFormTitle").textContent="Edit "+v.name;
   $("vName").value=v.name;$("vActive").checked=v.active;$("vErr").textContent="";
+  $("vAcctCreateSection").classList.add("hidden");
   $("vAcctVendor").textContent=v.name;$("vAcctSection").classList.remove("hidden");
   renderAcctList(id);resetAForm();
   const mb=$("vendorModal").querySelector(".modal-body"); if(mb)mb.scrollTop=0;
