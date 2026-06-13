@@ -560,7 +560,8 @@ function render(){
   $("rows").innerHTML=rows.map(r=>{
     const c=coById(r.company_id);
     const svc=r.service_type||(function(){const vv=vById(r.vendor_id);if(vv&&r.vendor_account_id){const a=vv.vendor_accounts.find(x=>x.id===r.vendor_account_id);return (a&&a.label)||"";}return "";})();
-    return `<tr onclick="openView(${r.id})">
+    const canEditOrDelete=can("rfp.edit")||can("rfp.delete");
+    return `<tr onclick="if(!event.target.closest('button'))openView(${r.id})" style="${canEditOrDelete?'cursor:pointer':''}">
       <td><b>${esc(r.rfp_number||"—")}</b></td>
       <td><span class="pill">${esc(c?c.code:"—")}</span></td>
       <td class="num">${fdate(r.request_date)}</td>
@@ -738,11 +739,11 @@ window.openView = async function(id){
   const f=$("viewFoot");f.innerHTML="";
   const mk=(label,cls,fn)=>{const b=document.createElement("button");b.className="btn "+cls+" sm";b.textContent=label;b.onclick=fn;f.appendChild(b);};
   mk("🖨 Print / Save PDF","",()=>window.print());
-  if(can("rfp.edit")&&!["paid","cancelled"].includes(r.status))mk("Edit","ghost",()=>{$("viewModal").classList.add("hidden");openForm(r);});
+  if(can("rfp.edit")&&!["paid","cancelled"].includes(r.status))mk("✎ Edit","blue",()=>{$("viewModal").classList.add("hidden");openForm(r);});
   for(const [target,cfg] of Object.entries(FLOW)){
     if(cfg.from.includes(r.status)&&can(cfg.perm))mk(cfg.label,cfg.cls,()=>changeStatus(r,target));
   }
-  if(can("rfp.delete"))mk("Delete","ghost",()=>delRfp(r));
+  if(can("rfp.delete"))mk("🗑 Delete","ghost",()=>{const pw=prompt("Admin password to delete "+r.rfp_number+":");if(!pw)return;delRfpWithPw(r,pw);});
   const sp=document.createElement("div");sp.style.flex="1";f.appendChild(sp);
   const cl=document.createElement("button");cl.className="btn ghost sm";cl.textContent="Close";cl.onclick=()=>$("viewModal").classList.add("hidden");f.appendChild(cl);
   const {data:acts}=await sb.from("rfp_activity").select("*").eq("rfp_id",id).order("created_at",{ascending:false});
@@ -766,6 +767,18 @@ async function delRfp(r){
   if(!confirm("Delete "+r.rfp_number+"? This cannot be undone."))return;
   const {error}=await sb.from("rfp_requests").delete().eq("id",r.id);
   if(error){toast(error.message);return;}
+  await logAct(r.id,"deleted","RFP deleted");
+  toast("Deleted");$("viewModal").classList.add("hidden");await load();
+}
+async function delRfpWithPw(r,pw){
+  if(!confirm("Delete "+r.rfp_number+"? This cannot be undone."))return;
+  const {data:{user}}=await sb.auth.getUser();
+  if(!user||!user.email){toast("Could not verify your session.");return;}
+  const {error:authErr}=await sb.auth.signInWithPassword({email:user.email,password:pw});
+  if(authErr){toast("Incorrect password — deletion cancelled.");return;}
+  const {error}=await sb.from("rfp_requests").delete().eq("id",r.id);
+  if(error){toast(error.message);return;}
+  await logAct(r.id,"deleted","RFP deleted by admin");
   toast("Deleted");$("viewModal").classList.add("hidden");await load();
 }
 
