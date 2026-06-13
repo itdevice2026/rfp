@@ -804,9 +804,16 @@ window.openView = async function(id){
 $("viewClose").onclick=()=>$("viewModal").classList.add("hidden");
 
 async function changeStatus(r,target){
+  const sigRequired=["submitted","checked","approved"].includes(target);
+  let sig="";
+  if(sigRequired){
+    sig=prompt(`Enter your signature to confirm ${target}:`);
+    if(!sig){toast("Signature required to proceed");return;}
+  }
   const {error}=await sb.from("rfp_requests").update({status:target}).eq("id",r.id);
   if(error){toast(error.message);return;}
-  await logAct(r.id,"status → "+target,"");
+  const detail=sigRequired?`Signed by ${ME.name}`:"";
+  await logAct(r.id,"status → "+target,detail);
   toast("Status: "+target);
   $("viewModal").classList.add("hidden");
   await load();
