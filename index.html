@@ -12,6 +12,16 @@
     --line:#e2e6ec; --bg:#f4f6f9; --card:#ffffff; --ok:#1f9d57; --warn:#d98a00;
     --blue:#2563eb; --soft:#f8fafc;
   }
+  :root[data-theme="dark"]{
+    --red:#e84c3b; --red-d:#c0322b; --ink:#e0e4ea; --muted:#a8b2bf;
+    --line:#2b3340; --bg:#0f1419; --card:#1a1f2b; --ok:#2bb86e; --warn:#f0a000;
+    --blue:#3b82f6; --soft:#252d3b;
+  }
+  :root[data-theme="branded"]{
+    --red:#c0322b; --red-d:#9c241f; --ink:#1a1a1a; --muted:#555;
+    --line:#ddd; --bg:#fafafa; --card:#fff; --ok:#1f9d57; --warn:#d98a00;
+    --blue:#c0322b; --soft:#f5f5f5;
+  }
   *{box-sizing:border-box}
   body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
   button{font-family:inherit;cursor:pointer}
@@ -25,7 +35,7 @@
   .login-card p{color:var(--muted);margin:0 0 20px;font-size:13px}
   .field{margin-bottom:14px}
   .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
-  .field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
   .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--red)}
   .btn{padding:10px 16px;border:none;border-radius:8px;background:var(--red);color:#fff;font-weight:600}
   .btn:hover{background:var(--red-d)}
@@ -197,6 +207,11 @@
     <button class="btn ghost sm hidden" id="vendorsBtn">Vendors</button>
     <button class="btn ghost sm hidden" id="companiesBtn">Companies</button>
     <button class="btn sm" id="newBtn">+ New Request</button>
+    <select class="btn ghost sm" id="themeSelector" style="padding:10px 12px;border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;">
+      <option value="light">☀️ Light</option>
+      <option value="dark">🌙 Dark</option>
+      <option value="branded">🏢 MEATPLUS</option>
+    </select>
     <div class="who"><b id="uName">—</b><span class="role-pill" id="uRole">—</span></div>
     <button class="btn ghost sm" id="logoutBtn">Sign out</button>
   </header>
@@ -438,6 +453,12 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// Apply saved theme immediately on page load
+(function(){
+  const saved=localStorage.getItem("rfp-theme")||"light";
+  document.documentElement.setAttribute("data-theme",saved);
+})();
+
 const SB_URL = "https://emkcwukiqxnvcbhkjiqz.supabase.co";
 const SB_KEY = "sb_publishable_u_qnmEI8oHI9Z_A0-Hht3Q_Yvaa7Ork";
 const sb = supabase.createClient(SB_URL, SB_KEY);
@@ -495,6 +516,18 @@ async function boot(){
   await loadCompanies();
   await loadVendors();
   await load();
+  initTheme();
+}
+
+/* ---------- Theme Selection ---------- */
+function initTheme(){
+  const saved=localStorage.getItem("rfp-theme")||"light";
+  applyTheme(saved);
+  $("themeSelector").value=saved;
+  $("themeSelector").onchange=e=>{applyTheme(e.target.value);localStorage.setItem("rfp-theme",e.target.value);};
+}
+function applyTheme(theme){
+  document.documentElement.setAttribute("data-theme",theme);
 }
 
 /* ---------- Companies ---------- */
