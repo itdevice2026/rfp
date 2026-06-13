@@ -1009,7 +1009,7 @@ function renderVList(){
   $("vList").innerHTML=(list.map(v=>`
     <div class="co-row">
       <div class="ci"><b>${esc(v.name)} ${v.active?"":'<span class="pill">inactive</span>'}</b>
-      <span>${v.vendor_accounts.length} account(s)</span></div>
+      <span>${v.vendor_accounts.length>0?v.vendor_accounts.map(a=>esc(a.account_number||"")).join(", "):"No accounts"}</span></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn ghost sm" onclick="editVendor('${v.id}')">Edit</button>
         <button class="btn ghost sm" onclick="toggleVendor('${v.id}')">${v.active?"Disable":"Enable"}</button>
