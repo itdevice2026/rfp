@@ -743,7 +743,7 @@ window.openView = async function(id){
   for(const [target,cfg] of Object.entries(FLOW)){
     if(cfg.from.includes(r.status)&&can(cfg.perm))mk(cfg.label,cfg.cls,()=>changeStatus(r,target));
   }
-  if(can("rfp.delete"))mk("🗑 Delete","ghost",()=>{const pw=prompt("Admin password to delete "+r.rfp_number+":");if(!pw)return;delRfpWithPw(r,pw);});
+  mk("🗑 Delete","ghost",()=>{const pw=prompt("Admin password to delete "+r.rfp_number+":");if(!pw)return;delRfpWithPw(r,pw);});
   const sp=document.createElement("div");sp.style.flex="1";f.appendChild(sp);
   const cl=document.createElement("button");cl.className="btn ghost sm";cl.textContent="Close";cl.onclick=()=>$("viewModal").classList.add("hidden");f.appendChild(cl);
   const {data:acts}=await sb.from("rfp_activity").select("*").eq("rfp_id",id).order("created_at",{ascending:false});
