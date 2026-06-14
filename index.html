@@ -288,6 +288,10 @@
           <div class="field"><label>Account No.</label><input id="fAcct" placeholder="New numbers are saved to the vendor"/></div>
           <div class="field"><label>Service Type</label><input id="fService"/></div>
         </div>
+        <div class="grid2">
+          <div class="field"><label>Invoice No. / SOA</label><input id="fInvoice" placeholder="e.g. INV-2024-001 or SOA-June-2024"/></div>
+          <div class="field"><label>PO No. (optional)</label><input id="fPO" placeholder="e.g. PO-2024-1234"/></div>
+        </div>
       </fieldset>
 
       <fieldset>
@@ -654,7 +658,7 @@ function openForm(r){
   set("fDate",r?r.request_date:new Date().toISOString().slice(0,10));
   set("fDue",r?.due_date);set("fRfp",r?.rfp_number);set("fPayee",r?.payee);
   set("fAmount",r?r.amount:"");set("fDesc",r?.description);set("fLoc",r?.location);
-  set("fPeriodFrom",r?.period_from);set("fPeriodTo",r?.period_to);set("fAcct",r?.account_no);set("fService",r?.service_type);
+  set("fPeriodFrom",r?.period_from);set("fPeriodTo",r?.period_to);set("fAcct",r?.account_no);set("fService",r?.service_type);set("fInvoice",r?.invoice_no);set("fPO",r?.po_no);
   set("fReqBy",r?r.requested_by:ME.name);set("fChk1",r?r.checked_by_1:"Nomer Sta Ana");set("fChk2",r?r.checked_by_2:"Ma. Rosalie Bolea");
   set("fApr1",r?r.approved_by_1:"Fritz Daniel Martinez");set("fApr2",r?r.approved_by_2:"Ma. Olivia D. Martinez");
   set("fApv",r?.apv_no);set("fCv",r?.cv_no);set("fBank",r?.bank);set("pmOther",r?.payment_method_other);
@@ -726,6 +730,8 @@ async function saveForm(){
     period_from:$("fPeriodFrom").value||null,
     period_to:$("fPeriodTo").value||null,
     account_no:$("fAcct").value.trim()||null,
+    invoice_no:$("fInvoice").value.trim()||null,
+    po_no:$("fPO").value.trim()||null,
     requested_by:$("fReqBy").value.trim()||null,
     checked_by_1:$("fChk1").value.trim()||null,
     checked_by_2:$("fChk2").value.trim()||null,
