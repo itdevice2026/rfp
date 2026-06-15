@@ -512,14 +512,11 @@
   </div>
 </div>
 
-<!-- FORCE PASSWORD CHANGE MODAL (shows on login) -->
-<div class="overlay hidden" id="forceChangeModal">
+<!-- CHANGE PASSWORD MODAL -->
+<div class="overlay hidden" id="changePasswordModal">
   <div class="modal" style="width:500px">
-    <div class="modal-head"><h2>Change Your Password</h2><button class="x" id="forceChangeClose">×</button></div>
+    <div class="modal-head"><h2>Change Your Password</h2><button class="x" id="changePassClose">×</button></div>
     <div class="modal-body">
-      <p style="color:var(--muted);margin-bottom:16px">
-        Your password was reset by an administrator. You must change it now before continuing.
-      </p>
       <div class="field">
         <label>New Password *</label>
         <input type="password" id="newPassword" placeholder="At least 8 characters, 1 uppercase, 1 number"/>
@@ -532,6 +529,7 @@
     </div>
     <div class="modal-foot">
       <button class="btn" id="changePasswordBtn">Change Password</button>
+      <button class="btn ghost" id="changePassCancelBtn">Cancel</button>
     </div>
   </div>
 </div>
@@ -613,7 +611,7 @@ async function doLogin(){
   if(error){$("loginErr").textContent=error.message;return;}
   await boot();
 }
-$("changePassBtn").onclick = ()=>{$("newPassword").value="";$("confirmPassword").value="";$("forceChangeErr").textContent="";$("forceChangeModal").classList.remove("hidden");};
+$("changePassBtn").onclick = ()=>{$("newPassword").value="";$("confirmPassword").value="";$("forceChangeErr").textContent="";$("changePasswordModal").classList.remove("hidden");};
 $("logoutBtn").onclick = async()=>{await sb.auth.signOut();location.reload();};
 
 /* ---------- User Management ---------- */
@@ -665,13 +663,13 @@ if($("userRoleFilter"))$("userRoleFilter").addEventListener("change",renderUserL
 function generateTempPassword(){const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';let password='';for(let i=0;i<12;i++){password+=chars.charAt(Math.floor(Math.random()*chars.length));}return password;}
 window.resetPassword=async function(userId){const user=USERS.find(u=>u.id===userId);if(!user)return;$("resetUserName").textContent=user.name;$("tempPassword").value=generateTempPassword();$("resetErr").textContent="";$("resetPasswordModal").classList.remove("hidden");};
 async function handleResetPassword(){const userId=USERS.find(u=>u.name===$("resetUserName").textContent)?.id;const tempPassword=$("tempPassword").value;if(!userId||!tempPassword){$("resetErr").textContent="Error: Missing user or password";return;}$("resetConfirmBtn").disabled=true;$("resetConfirmBtn").textContent="Resetting...";try{const token=(await sb.auth.getSession()).data.session.access_token;const res=await fetch("https://emkcwukiqxnvcbhkjiqz.supabase.co/functions/v1/reset-password",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify({userId,tempPassword})});const result=await res.json();if(!res.ok||result.error){$("resetErr").textContent=result.error||"Failed to reset password";$("resetConfirmBtn").disabled=false;$("resetConfirmBtn").textContent="Generate & Reset";return;}toast("Password reset! Share this temp password: "+tempPassword);$("resetPasswordModal").classList.add("hidden");await loadUsers();}catch(error){$("resetErr").textContent="Error: "+error.message;$("resetConfirmBtn").disabled=false;$("resetConfirmBtn").textContent="Generate & Reset";}}
-async function handleForcePasswordChange(){const newPassword=$("newPassword").value;const confirmPassword=$("confirmPassword").value;$("forceChangeErr").textContent="";if(!newPassword||!confirmPassword){$("forceChangeErr").textContent="Both fields are required.";return;}if(newPassword!==confirmPassword){$("forceChangeErr").textContent="Passwords do not match.";return;}if(newPassword.length<8){$("forceChangeErr").textContent="Password must be at least 8 characters.";return;}if(!/[A-Z]/.test(newPassword)||!/[0-9]/.test(newPassword)){$("forceChangeErr").textContent="Password needs uppercase letter and number.";return;}$("changePasswordBtn").disabled=true;$("changePasswordBtn").textContent="Changing...";try{const {error}=await sb.auth.updateUser({password:newPassword});if(error){$("forceChangeErr").textContent=error.message;$("changePasswordBtn").disabled=false;$("changePasswordBtn").textContent="Change Password";return;}const user=(await sb.auth.getUser()).data.user;await sb.from("profiles").update({must_change_password:false}).eq("id",user.id);toast("Password changed successfully!");$("forceChangeModal").classList.add("hidden");await boot();}catch(error){$("forceChangeErr").textContent="Error changing password: "+error.message;$("changePasswordBtn").disabled=false;$("changePasswordBtn").textContent="Change Password";}}
+async function handleForcePasswordChange(){const newPassword=$("newPassword").value;const confirmPassword=$("confirmPassword").value;$("forceChangeErr").textContent="";if(!newPassword||!confirmPassword){$("forceChangeErr").textContent="Both fields are required.";return;}if(newPassword!==confirmPassword){$("forceChangeErr").textContent="Passwords do not match.";return;}if(newPassword.length<8){$("forceChangeErr").textContent="Password must be at least 8 characters.";return;}if(!/[A-Z]/.test(newPassword)||!/[0-9]/.test(newPassword)){$("forceChangeErr").textContent="Password needs uppercase letter and number.";return;}$("changePasswordBtn").disabled=true;$("changePasswordBtn").textContent="Changing...";try{const {error}=await sb.auth.updateUser({password:newPassword});if(error){$("forceChangeErr").textContent=error.message;$("changePasswordBtn").disabled=false;$("changePasswordBtn").textContent="Change Password";return;}toast("Password changed successfully!");$("changePasswordModal").classList.add("hidden");}catch(error){$("forceChangeErr").textContent="Error changing password: "+error.message;$("changePasswordBtn").disabled=false;$("changePasswordBtn").textContent="Change Password";}}
 if($("resetClose"))$("resetClose").onclick=()=>$("resetPasswordModal").classList.add("hidden");
 if($("resetCancelBtn"))$("resetCancelBtn").onclick=()=>$("resetPasswordModal").classList.add("hidden");
 if($("resetConfirmBtn"))$("resetConfirmBtn").onclick=handleResetPassword;
-if($("forceChangeClose"))$("forceChangeClose").onclick=()=>$("forceChangeModal").classList.add("hidden");
+if($("changePassClose"))$("changePassClose").onclick=()=>$("changePasswordModal").classList.add("hidden");
+if($("changePassCancelBtn"))$("changePassCancelBtn").onclick=()=>$("changePasswordModal").classList.add("hidden");
 if($("changePasswordBtn"))$("changePasswordBtn").onclick=handleForcePasswordChange;
-async function checkForcePasswordChange(){const {data:{user}}=await sb.auth.getUser();if(!user)return;const {data:prof}=await sb.from("profiles").select("must_change_password").eq("id",user.id).single();if(prof&&prof.must_change_password){$("forceChangeModal").classList.remove("hidden");}}
 
 async function boot(){
   const {data:{user}}=await sb.auth.getUser();
