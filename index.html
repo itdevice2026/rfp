@@ -480,6 +480,59 @@
   </div>
 </div>
 
+<!-- PASSWORD RESET MODAL -->
+<div class="overlay hidden" id="resetPasswordModal">
+  <div class="modal" style="width:500px">
+    <div class="modal-head"><h2>Reset User Password</h2><button class="x" id="resetClose">×</button></div>
+    <div class="modal-body">
+      <div id="resetContent">
+        <p style="color:var(--muted);margin-bottom:16px">Generate a temporary password for <strong id="resetUserName"></strong></p>
+        <div class="field">
+          <label>Temporary Password (auto-generated)</label>
+          <input type="text" id="tempPassword" readonly style="background:var(--soft);cursor:default"/>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin:12px 0">
+          Instructions for the user:
+        </p>
+        <ol style="font-size:12px;color:var(--muted);margin:0;padding-left:20px">
+          <li>Log in with the temporary password above</li>
+          <li>You will be asked to change your password immediately</li>
+          <li>Create a new password and log in again</li>
+        </ol>
+        <div class="err" id="resetErr"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ok" id="resetConfirmBtn">Generate & Reset</button>
+      <button class="btn ghost" id="resetCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- FORCE PASSWORD CHANGE MODAL (shows on login) -->
+<div class="overlay hidden" id="forceChangeModal">
+  <div class="modal" style="width:500px">
+    <div class="modal-head"><h2>Change Your Password</h2></div>
+    <div class="modal-body">
+      <p style="color:var(--muted);margin-bottom:16px">
+        Your password was reset by an administrator. You must change it now before continuing.
+      </p>
+      <div class="field">
+        <label>New Password *</label>
+        <input type="password" id="newPassword" placeholder="At least 8 characters, 1 uppercase, 1 number"/>
+      </div>
+      <div class="field">
+        <label>Confirm Password *</label>
+        <input type="password" id="confirmPassword" placeholder="Re-enter your password"/>
+      </div>
+      <div class="err" id="forceChangeErr"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="changePasswordBtn">Change Password</button>
+    </div>
+  </div>
+</div>
+
 <!-- REPORT MODAL -->
 <div class="overlay hidden" id="reportModal">
   <div class="modal" style="width:560px">
@@ -579,6 +632,7 @@ function renderUserList(){
       <div style="display:flex;gap:6px"><span class="pill" style="background:${u.active?"var(--ok)":"var(--line)"};color:white;font-size:11px;padding:4px 8px">${u.active?"Active":"Inactive"}</span></div>
       <div style="display:flex;gap:6px">
         <button class="btn ghost sm" onclick="editUser('${u.id}')">Edit</button>
+        <button class="btn ghost sm" onclick="resetPassword('${u.id}')">Reset Password</button>
         <button class="btn ghost sm" onclick="toggleUserStatus('${u.id}')">${u.active?"Disable":"Enable"}</button>
       </div>
     </div>
@@ -598,6 +652,17 @@ if($("uSave"))$("uSave").onclick=saveUser;
 if($("uCancel"))$("uCancel").onclick=resetUserForm;
 if($("userSearch"))$("userSearch").addEventListener("input",renderUserList);
 if($("userRoleFilter"))$("userRoleFilter").addEventListener("change",renderUserList);
+
+/* ========== PASSWORD RESET FUNCTIONALITY ========== */
+function generateTempPassword(){const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';let password='';for(let i=0;i<12;i++){password+=chars.charAt(Math.floor(Math.random()*chars.length));}return password;}
+window.resetPassword=async function(userId){const user=USERS.find(u=>u.id===userId);if(!user)return;$("resetUserName").textContent=user.name;$("tempPassword").value=generateTempPassword();$("resetErr").textContent="";$("resetPasswordModal").classList.remove("hidden");};
+async function handleResetPassword(){const userId=USERS.find(u=>u.name===$("resetUserName").textContent)?.id;const tempPassword=$("tempPassword").value;if(!userId||!tempPassword){$("resetErr").textContent="Error: Missing user or password";return;}$("resetConfirmBtn").disabled=true;$("resetConfirmBtn").textContent="Resetting...";try{const token=(await sb.auth.getSession()).data.session.access_token;const res=await fetch("https://emkcwukiqxnvcbhkjiqz.supabase.co/functions/v1/reset-password",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify({userId:userId,tempPassword:tempPassword})});const result=await res.json();if(result.error){$("resetErr").textContent=result.error;$("resetConfirmBtn").disabled=false;$("resetConfirmBtn").textContent="Generate & Reset";return;}toast("Password reset successfully! User must change password on next login.");$("resetPasswordModal").classList.add("hidden");await loadUsers();}catch(error){$("resetErr").textContent="Error resetting password: "+error.message;$("resetConfirmBtn").disabled=false;$("resetConfirmBtn").textContent="Generate & Reset";}}
+async function handleForcePasswordChange(){const newPassword=$("newPassword").value;const confirmPassword=$("confirmPassword").value;$("forceChangeErr").textContent="";if(!newPassword||!confirmPassword){$("forceChangeErr").textContent="Both fields are required.";return;}if(newPassword!==confirmPassword){$("forceChangeErr").textContent="Passwords do not match.";return;}if(newPassword.length<8){$("forceChangeErr").textContent="Password must be at least 8 characters.";return;}if(!/[A-Z]/.test(newPassword)||!/[0-9]/.test(newPassword)){$("forceChangeErr").textContent="Password needs uppercase letter and number.";return;}$("changePasswordBtn").disabled=true;$("changePasswordBtn").textContent="Changing...";try{const {error}=await sb.auth.updateUser({password:newPassword});if(error){$("forceChangeErr").textContent=error.message;$("changePasswordBtn").disabled=false;$("changePasswordBtn").textContent="Change Password";return;}const user=(await sb.auth.getUser()).data.user;await sb.from("profiles").update({must_change_password:false}).eq("id",user.id);toast("Password changed successfully!");$("forceChangeModal").classList.add("hidden");await boot();}catch(error){$("forceChangeErr").textContent="Error changing password: "+error.message;$("changePasswordBtn").disabled=false;$("changePasswordBtn").textContent="Change Password";}}
+if($("resetClose"))$("resetClose").onclick=()=>$("resetPasswordModal").classList.add("hidden");
+if($("resetCancelBtn"))$("resetCancelBtn").onclick=()=>$("resetPasswordModal").classList.add("hidden");
+if($("resetConfirmBtn"))$("resetConfirmBtn").onclick=handleResetPassword;
+if($("changePasswordBtn"))$("changePasswordBtn").onclick=handleForcePasswordChange;
+async function checkForcePasswordChange(){const {data:{user}}=await sb.auth.getUser();if(!user)return;const {data:prof}=await sb.from("profiles").select("must_change_password").eq("id",user.id).single();if(prof&&prof.must_change_password){$("forceChangeModal").classList.remove("hidden");}}
 
 async function boot(){
   const {data:{user}}=await sb.auth.getUser();
@@ -619,6 +684,7 @@ async function boot(){
   await loadVendors();
   await loadUsers();
   sb.from("profiles").update({last_sign_in:new Date().toISOString()}).eq("id",ME.id).then(()=>{}).catch(()=>{});
+  await checkForcePasswordChange();
   await load();
   initTheme();
 }
