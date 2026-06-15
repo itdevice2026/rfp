@@ -206,6 +206,7 @@
     <div class="spacer"></div>
     <button class="btn ghost sm hidden" id="vendorsBtn">Vendors</button>
     <button class="btn ghost sm hidden" id="companiesBtn">Companies</button>
+    <button class="btn ghost sm hidden" id="usersBtn">Users</button>
     <button class="btn sm" id="newBtn">+ New Request</button>
     <select class="btn ghost sm" id="themeSelector" style="padding:10px 12px;border:1px solid var(--line);background:var(--card);border-radius:8px;cursor:pointer;">
       <option value="light">☀️ Light</option>
@@ -433,6 +434,52 @@
   </div>
 </div>
 
+<!-- USER MANAGEMENT MODAL -->
+<div class="overlay hidden" id="userModal">
+  <div class="modal" style="width:960px">
+    <div class="modal-head"><h2>User Management</h2><button class="x" id="userClose">×</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:10px;margin-bottom:16px;border-bottom:1px solid var(--line);padding-bottom:12px">
+        <button id="userListTab" class="tab-btn active" style="background:none;border:none;padding:0;cursor:pointer;font-weight:600;color:var(--ink);border-bottom:2px solid var(--red)">All Users</button>
+        <button id="userFormTab" class="tab-btn" style="background:none;border:none;padding:0;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:2px solid transparent">Add User</button>
+      </div>
+
+      <!-- Users List Tab -->
+      <div id="userListTab-content">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <input type="text" id="userSearch" placeholder="Search by name or email..."
+                 style="flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+          <select id="userRoleFilter" style="padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">
+            <option value="">All Roles</option>
+            <option value="Admin">Admin</option>
+            <option value="Dept Head">Dept Head</option>
+            <option value="Staff">Staff</option>
+          </select>
+        </div>
+        <div id="userList" style="display:flex;flex-direction:column;gap:10px;max-height:54vh;overflow-y:auto">
+          <!-- Populated by renderUserList() -->
+        </div>
+      </div>
+
+      <!-- Create/Edit User Form Tab -->
+      <div id="userFormTab-content" class="hidden">
+        <div style="max-width:500px">
+          <div class="field"><label>Full Name *</label><input type="text" id="uName" placeholder="John Doe"/></div>
+          <div class="field"><label>Email *</label><input type="email" id="uEmail" placeholder="user@meatplus.ph"/><span id="uEmailNote" style="font-size:11px;color:var(--muted);margin-top:4px;display:block">New user: enter desired login email</span></div>
+          <div class="field" id="uPasswordSection"><label>Initial Password *</label><input type="password" id="uPassword" placeholder="Temporary password (user will change on first login)"/><span style="font-size:11px;color:var(--muted);margin-top:4px;display:block">User must change this on first login</span></div>
+          <div class="field"><label>Role *</label><select id="uRole"><option value="">— Select a role —</option><option value="Admin">Admin</option><option value="Dept Head">Dept Head</option><option value="Staff">Staff</option></select></div>
+          <div class="field" style="margin-bottom:16px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="uActive" checked/><span>Active user</span></label></div>
+          <div class="err" id="uErr"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn sm" id="uSave">Save User</button>
+            <button class="btn ghost sm" id="uCancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- REPORT MODAL -->
 <div class="overlay hidden" id="reportModal">
   <div class="modal" style="width:560px">
@@ -489,6 +536,8 @@ let coEditingId = null;
 let coLogoData = undefined; // undefined = unchanged, null = cleared, string = new data URI
 let VENDORS = [];
 let vEditingId = null, aEditingId = null;
+let USERS = [];
+let userEditingId = null;
 
 const $ = id => document.getElementById(id);
 function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200);}
@@ -510,6 +559,46 @@ async function doLogin(){
 }
 $("logoutBtn").onclick = async()=>{await sb.auth.signOut();location.reload();};
 
+/* ---------- User Management ---------- */
+async function loadUsers(){
+  const {data,error}=await sb.from("profiles").select("id,name,email,role,active,created_at,last_sign_in").neq("id",ME.id).order("created_at",{ascending:false});
+  if(error){toast(error.message);return;}
+  USERS=data||[];
+  if(!$("userModal").classList.contains("hidden"))renderUserList();
+}
+function renderUserList(){
+  const q=($("userSearch")?.value||"").toLowerCase(),rf=($("userRoleFilter")?.value||"");
+  let filtered=USERS.filter(u=>(u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q))&&(!rf||u.role===rf));
+  $("userList").innerHTML=filtered.map(u=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:14px">${esc(u.name)}</div>
+        <div style="font-size:12px;color:var(--muted)">${esc(u.email)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Role: <strong>${u.role}</strong> · Last login: ${u.last_sign_in?new Date(u.last_sign_in).toLocaleDateString():"Never"}</div>
+      </div>
+      <div style="display:flex;gap:6px"><span class="pill" style="background:${u.active?"var(--ok)":"var(--line)"};color:white;font-size:11px;padding:4px 8px">${u.active?"Active":"Inactive"}</span></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn ghost sm" onclick="editUser('${u.id}')">Edit</button>
+        <button class="btn ghost sm" onclick="toggleUserStatus('${u.id}')">${u.active?"Disable":"Enable"}</button>
+      </div>
+    </div>
+  `).join("")||`<div style="color:var(--muted);text-align:center;padding:32px">No users found.</div>`;
+}
+function switchUserTab(t){document.querySelectorAll('[id^="userFormTab"],[id^="userListTab"]').forEach(e=>{e.id.endsWith("-content")?e.classList.toggle("hidden",!e.id.startsWith(t)):e.classList.toggle("active",e.id===t)});}
+function resetUserForm(){userEditingId=null;$("uName").value="";$("uEmail").value="";$("uPassword").value="";$("uRole").value="";$("uActive").checked=true;$("uErr").textContent="";$("uPasswordSection").style.display="block";$("uEmail").disabled=false;$("uEmailNote").textContent="New user: enter desired login email";}
+function openUsers(){if(!can("user.manage")){toast("You don't have permission to manage users.");return;}resetUserForm();renderUserList();$("userModal").classList.remove("hidden");}
+window.editUser=async function(id){const u=USERS.find(x=>x.id===id);if(!u)return;userEditingId=id;$("uName").value=u.name;$("uEmail").value=u.email;$("uPassword").value="";$("uRole").value=u.role;$("uActive").checked=u.active;$("uErr").textContent="";$("uPasswordSection").style.display="none";$("uEmail").disabled=true;$("uEmailNote").textContent="To change email, create a new user";switchUserTab("userFormTab");};
+window.toggleUserStatus=async function(id){const u=USERS.find(x=>x.id===id);if(!u)return;const {error}=await sb.from("profiles").update({active:!u.active}).eq("id",id);if(error){toast(error.message);return;}toast(u.active?"User disabled":"User enabled");await loadUsers();};
+async function saveUser(){$("uErr").textContent="";const name=$("uName").value.trim(),email=$("uEmail").value.trim(),role=$("uRole").value,active=$("uActive").checked;if(!name||!email||!role){$("uErr").textContent="Name, email, and role are required.";return;}if(!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)){$("uErr").textContent="Invalid email format.";return;}if(userEditingId){const {error}=await sb.from("profiles").update({name,role,active}).eq("id",userEditingId);if(error){$("uErr").textContent=error.message;return;}toast("User updated");}else{const pw=$("uPassword").value;if(pw.length<8){$("uErr").textContent="Password must be at least 8 characters.";return;}if(!/[A-Z]/.test(pw)||!/[0-9]/.test(pw)){$("uErr").textContent="Password needs uppercase letter and number.";return;}const token=(await sb.auth.getSession()).data.session.access_token;const res=await fetch("https://emkcwukiqxnvcbhkjiqz.supabase.co/functions/v1/create-user",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify({email,password:pw,name,role})});const result=await res.json();if(result.error){$("uErr").textContent=result.error;return;}toast("User created");}resetUserForm();$("uEmail").disabled=false;switchUserTab("userListTab");await loadUsers();}
+if($("usersBtn"))$("usersBtn").onclick=openUsers;
+if($("userClose"))$("userClose").onclick=()=>$("userModal").classList.add("hidden");
+if($("userListTab"))$("userListTab").onclick=()=>switchUserTab("userListTab");
+if($("userFormTab"))$("userFormTab").onclick=()=>switchUserTab("userFormTab");
+if($("uSave"))$("uSave").onclick=saveUser;
+if($("uCancel"))$("uCancel").onclick=resetUserForm;
+if($("userSearch"))$("userSearch").addEventListener("input",renderUserList);
+if($("userRoleFilter"))$("userRoleFilter").addEventListener("change",renderUserList);
+
 async function boot(){
   const {data:{user}}=await sb.auth.getUser();
   if(!user)return;
@@ -524,9 +613,12 @@ async function boot(){
   if(!can("rfp.create"))$("newBtn").classList.add("hidden");
   if(can("rfp.companies"))$("companiesBtn").classList.remove("hidden");
   if(can("rfp.vendors"))$("vendorsBtn").classList.remove("hidden");
+  if(can("user.manage"))$("usersBtn").classList.remove("hidden");
   buildPmGrid();
   await loadCompanies();
   await loadVendors();
+  await loadUsers();
+  sb.from("profiles").update({last_sign_in:new Date().toISOString()}).eq("id",ME.id).then(()=>{}).catch(()=>{});
   await load();
   initTheme();
 }
