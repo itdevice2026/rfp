@@ -214,6 +214,7 @@
       <option value="branded">🏢 MEATPLUS</option>
     </select>
     <div class="who"><b id="uName">—</b><span class="role-pill" id="uRole">—</span></div>
+    <button class="btn ghost sm" id="changePassBtn">Change Password</button>
     <button class="btn ghost sm" id="logoutBtn">Sign out</button>
   </header>
 
@@ -610,6 +611,7 @@ async function doLogin(){
   if(error){$("loginErr").textContent=error.message;return;}
   await boot();
 }
+$("changePassBtn").onclick = ()=>{$("newPassword").value="";$("confirmPassword").value="";$("forceChangeErr").textContent="";$("forceChangeModal").classList.remove("hidden");};
 $("logoutBtn").onclick = async()=>{await sb.auth.signOut();location.reload();};
 
 /* ---------- User Management ---------- */
@@ -632,7 +634,6 @@ function renderUserList(){
       <div style="display:flex;gap:6px"><span class="pill" style="background:${u.active?"var(--ok)":"var(--line)"};color:white;font-size:11px;padding:4px 8px">${u.active?"Active":"Inactive"}</span></div>
       <div style="display:flex;gap:6px">
         <button class="btn ghost sm" onclick="editUser('${u.id}')">Edit</button>
-        <button class="btn ghost sm" onclick="resetPassword('${u.id}')">Reset Password</button>
         <button class="btn ghost sm" onclick="toggleUserStatus('${u.id}')">${u.active?"Disable":"Enable"}</button>
       </div>
     </div>
