@@ -536,29 +536,6 @@
   </div>
 </div>
 
-<!-- ADMIN CHANGE PASSWORD MODAL -->
-<div class="overlay hidden" id="adminChangePassModal">
-  <div class="modal" style="width:500px">
-    <div class="modal-head"><h2>Change User Password</h2><button class="x" id="adminChangePassClose">×</button></div>
-    <div class="modal-body">
-      <p style="color:var(--muted);margin-bottom:16px">Set new password for <strong id="adminChangePassUser"></strong></p>
-      <div class="field">
-        <label>New Password *</label>
-        <input type="password" id="adminNewPass" placeholder="At least 8 characters, 1 uppercase, 1 number"/>
-      </div>
-      <div class="field">
-        <label>Confirm Password *</label>
-        <input type="password" id="adminConfirmPass" placeholder="Re-enter password"/>
-      </div>
-      <div class="err" id="adminChangePassErr"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn" id="adminChangePassBtn">Change Password</button>
-      <button class="btn ghost" id="adminChangePassCancelBtn">Cancel</button>
-    </div>
-  </div>
-</div>
-
 <!-- REPORT MODAL -->
 <div class="overlay hidden" id="reportModal">
   <div class="modal" style="width:560px">
@@ -659,7 +636,6 @@ function renderUserList(){
       <div style="display:flex;gap:6px"><span class="pill" style="background:${u.active?"var(--ok)":"var(--line)"};color:white;font-size:11px;padding:4px 8px">${u.active?"Active":"Inactive"}</span></div>
       <div style="display:flex;gap:6px">
         <button class="btn ghost sm" onclick="editUser('${u.id}')">Edit</button>
-        <button class="btn ghost sm" onclick="openChangePasswordModal('${u.id}')">Change Password</button>
         <button class="btn ghost sm" onclick="toggleUserStatus('${u.id}')">${u.active?"Disable":"Enable"}</button>
         <button class="btn ghost sm" onclick="deleteUser('${u.id}')" style="color:var(--error)">Delete</button>
       </div>
@@ -671,14 +647,7 @@ function resetUserForm(){userEditingId=null;$("uName").value="";$("uEmail").valu
 function openUsers(){if(!can("user.manage")){toast("You don't have permission to manage users.");return;}resetUserForm();renderUserList();$("userModal").classList.remove("hidden");}
 window.editUser=async function(id){const u=USERS.find(x=>x.id===id);if(!u)return;userEditingId=id;$("uName").value=u.name;$("uEmail").value=u.email;$("uPassword").value="";$("uRole").value=u.role;$("uActive").checked=u.active;$("uErr").textContent="";$("uPasswordSection").style.display="none";$("uEmail").disabled=true;$("uEmailNote").textContent="To change email, create a new user";switchUserTab("userFormTab");};
 window.toggleUserStatus=async function(id){const u=USERS.find(x=>x.id===id);if(!u)return;const {error}=await sb.from("profiles").update({active:!u.active}).eq("id",id);if(error){toast(error.message);return;}toast(u.active?"User disabled":"User enabled");await loadUsers();};
-window.forcePasswordChange=async function(id){const u=USERS.find(x=>x.id===id);if(!u)return;const {error}=await sb.from("profiles").update({must_change_password:true}).eq("id",id);if(error){toast(error.message);return;}toast("User will be required to change password on next login");await loadUsers();};
-let adminChangePassUserId=null;
-window.openChangePasswordModal=function(id){const u=USERS.find(x=>x.id===id);if(!u)return;adminChangePassUserId=id;$("adminChangePassUser").textContent=u.name;$("adminNewPass").value="";$("adminConfirmPass").value="";$("adminChangePassErr").textContent="";$("adminChangePassModal").classList.remove("hidden");};
-async function handleAdminChangePassword(){const newPass=$("adminNewPass").value,confirmPass=$("adminConfirmPass").value;$("adminChangePassErr").textContent="";if(!newPass||!confirmPass){$("adminChangePassErr").textContent="Both fields required.";return;}if(newPass!==confirmPass){$("adminChangePassErr").textContent="Passwords do not match.";return;}if(newPass.length<8){$("adminChangePassErr").textContent="Password must be at least 8 characters.";return;}if(!/[A-Z]/.test(newPass)||!/[0-9]/.test(newPass)){$("adminChangePassErr").textContent="Password needs uppercase letter and number.";return;}$("adminChangePassBtn").disabled=true;$("adminChangePassBtn").textContent="Updating...";try{const token=(await sb.auth.getSession()).data.session.access_token;const res=await fetch("https://emkcwukiqxnvcbhkjiqz.supabase.co/functions/v1/change-password",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},body:JSON.stringify({userId:adminChangePassUserId,password:newPass})});if(!res.ok){const err=await res.json();$("adminChangePassErr").textContent=err.error||"Failed to change password";$("adminChangePassBtn").disabled=false;$("adminChangePassBtn").textContent="Change Password";return;}toast("Password changed! User must change on next login.");$("adminChangePassModal").classList.add("hidden");await loadUsers();}catch(e){$("adminChangePassErr").textContent="Error: "+e.message;$("adminChangePassBtn").disabled=false;$("adminChangePassBtn").textContent="Change Password";}};
 window.deleteUser=async function(id){if(!confirm("Delete this user? This cannot be undone."))return;const {error}=await sb.from("profiles").delete().eq("id",id);if(error){toast(error.message);return;}toast("User deleted");await loadUsers();};
-if($("adminChangePassClose"))$("adminChangePassClose").onclick=()=>$("adminChangePassModal").classList.add("hidden");
-if($("adminChangePassCancelBtn"))$("adminChangePassCancelBtn").onclick=()=>$("adminChangePassModal").classList.add("hidden");
-if($("adminChangePassBtn"))$("adminChangePassBtn").onclick=handleAdminChangePassword;
 window.deleteUser=async function(){if(!userEditingId)return;if(!confirm("Are you sure you want to delete this user? This cannot be undone."))return;const {error}=await sb.from("profiles").delete().eq("id",userEditingId);if(error){toast("Error: "+error.message);return;}toast("User deleted");resetUserForm();switchUserTab("userListTab");await loadUsers();};
 if($("uForcePwd"))$("uForcePwd").onclick=()=>{if(!userEditingId)return;const u=USERS.find(x=>x.id===userEditingId);if(!u)return;const {error}=sb.from("profiles").update({must_change_password:true}).eq("id",userEditingId);if(error){$("uErr").textContent=error.message;return;}toast("User will be required to change password on next login");};
 if($("uDelete"))$("uDelete").onclick=deleteUser;
