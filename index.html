@@ -693,7 +693,6 @@ async function boot(){
   await loadVendors();
   await loadUsers();
   sb.from("profiles").update({last_sign_in:new Date().toISOString()}).eq("id",ME.id).then(()=>{}).catch(()=>{});
-  await checkForcePasswordChange();
   await load();
   initTheme();
 }
