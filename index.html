@@ -77,19 +77,9 @@
   .toolbar .search{flex:1;min-width:200px}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  table{width:100%;border-collapse:collapse;min-width:1000px}
+  table{width:100%;border-collapse:collapse}
   table th,table td{padding:8px 6px;font-size:12px;border-bottom:1px solid var(--line)}
   table th{background:var(--soft);font-weight:600}
-  table th:nth-child(1){min-width:120px}
-  table th:nth-child(2){min-width:80px}
-  table th:nth-child(3){min-width:80px}
-  table th:nth-child(4){min-width:140px}
-  table th:nth-child(5){min-width:180px}
-  table th:nth-child(6){min-width:100px}
-  table th:nth-child(7){min-width:110px}
-  table th:nth-child(8){min-width:100px}
-  table th:nth-child(9){min-width:90px}
-  table th:nth-child(10){min-width:80px}
   .card{overflow-x:auto}
   th{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--soft)}
   td{padding:11px 14px;border-bottom:1px solid var(--line)}
@@ -253,7 +243,7 @@
       <table>
         <thead><tr>
           <th>RFP No.</th><th>Company</th><th>Date</th><th>Payee</th><th>Description</th>
-          <th>Account No.</th><th>Service Type</th><th class="right">Amount</th><th>Method</th><th>Status</th>
+          <th>Account No.</th><th>Amount</th><th>Status</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -790,9 +780,7 @@ function render(){
       <td>${esc(r.payee)}</td>
       <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.description||"")}</td>
       <td class="num">${esc(r.account_no||"")}</td>
-      <td>${esc(svc)}</td>
       <td class="right num">${PHP(r.amount)}</td>
-      <td>${PM[r.payment_method]||r.payment_method}</td>
       <td><span class="badge s-${r.status}">${r.status}</span></td>
     </tr>`;}).join("");
 }
