@@ -77,7 +77,11 @@
   .toolbar .search{flex:1;min-width:200px}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  table{width:100%;border-collapse:collapse}
+  table{width:100%;border-collapse:collapse;min-width:1200px}
+  table th,table td{padding:10px 8px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  table th:nth-child(5){min-width:200px;white-space:normal}
+  table td:nth-child(5){min-width:200px;white-space:normal}
+  main>div>div:has(table){overflow-x:auto}
   th{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--soft)}
   td{padding:11px 14px;border-bottom:1px solid var(--line)}
   tbody tr:hover{background:var(--soft);cursor:pointer}
