@@ -626,7 +626,7 @@ async function loadUsers(){
 }
 function renderUserList(){
   const q=($("userSearch")?.value||"").toLowerCase(),rf=($("userRoleFilter")?.value||"");
-  let filtered=USERS.filter(u=>(u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q))&&(!rf||u.role===rf));
+  let filtered=USERS.filter(u=>((u.name||"").toLowerCase().includes(q)||(u.email||"").toLowerCase().includes(q))&&(!rf||u.role===rf));
   $("userList").innerHTML=filtered.map(u=>`
     <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
       <div style="flex:1">
