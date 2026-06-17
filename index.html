@@ -625,23 +625,31 @@ async function loadUsers(){
   if(!$("userModal").classList.contains("hidden"))renderUserList();
 }
 function renderUserList(){
-  const q=($("userSearch")?.value||"").toLowerCase(),rf=($("userRoleFilter")?.value||"");
-  let filtered=USERS.filter(u=>((u.name||"").toLowerCase().includes(q)||(u.email||"").toLowerCase().includes(q))&&(!rf||u.role===rf));
-  $("userList").innerHTML=filtered.map(u=>`
-    <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
-      <div style="flex:1">
-        <div style="font-weight:600;font-size:14px">${esc(u.name)}</div>
-        <div style="font-size:12px;color:var(--muted)">${esc(u.email)}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">Role: <strong>${u.role}</strong> · Last login: ${u.last_sign_in?new Date(u.last_sign_in).toLocaleDateString():"Never"}</div>
+  try{
+    const q=($("userSearch")?.value||"").toLowerCase(),rf=($("userRoleFilter")?.value||"");
+    let filtered=USERS.filter(u=>{
+      const name=(u.name||"").toLowerCase();
+      const email=(u.email||"").toLowerCase();
+      const matchesSearch=name.includes(q)||email.includes(q);
+      const matchesRole=!rf||u.role===rf;
+      return matchesSearch&&matchesRole;
+    });
+    $("userList").innerHTML=filtered.map(u=>`
+      <div style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px">${esc(u.name||"(No name)")}</div>
+          <div style="font-size:12px;color:var(--muted)">${esc(u.email||"(No email)")}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Role: <strong>${u.role}</strong> · Last login: ${u.last_sign_in?new Date(u.last_sign_in).toLocaleDateString():"Never"}</div>
+        </div>
+        <div style="display:flex;gap:6px"><span class="pill" style="background:${u.active?"var(--ok)":"var(--line)"};color:white;font-size:11px;padding:4px 8px">${u.active?"Active":"Inactive"}</span></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn ghost sm" onclick="editUser('${u.id}')">Edit</button>
+          <button class="btn ghost sm" onclick="toggleUserStatus('${u.id}')">${u.active?"Disable":"Enable"}</button>
+          <button class="btn ghost sm" onclick="deleteUser('${u.id}')" style="color:var(--error)">Delete</button>
+        </div>
       </div>
-      <div style="display:flex;gap:6px"><span class="pill" style="background:${u.active?"var(--ok)":"var(--line)"};color:white;font-size:11px;padding:4px 8px">${u.active?"Active":"Inactive"}</span></div>
-      <div style="display:flex;gap:6px">
-        <button class="btn ghost sm" onclick="editUser('${u.id}')">Edit</button>
-        <button class="btn ghost sm" onclick="toggleUserStatus('${u.id}')">${u.active?"Disable":"Enable"}</button>
-        <button class="btn ghost sm" onclick="deleteUser('${u.id}')" style="color:var(--error)">Delete</button>
-      </div>
-    </div>
-  `).join("")||`<div style="color:var(--muted);text-align:center;padding:32px">No users found.</div>`;
+    `).join("")||`<div style="color:var(--muted);text-align:center;padding:32px">No users found.</div>`;
+  }catch(e){console.error("renderUserList error:",e);$("userList").innerHTML=`<div style="color:red;padding:12px">Error: ${e.message}</div>`;}
 }
 function switchUserTab(t){document.querySelectorAll('[id^="userFormTab"],[id^="userListTab"]').forEach(e=>{e.id.endsWith("-content")?e.classList.toggle("hidden",!e.id.startsWith(t)):e.classList.toggle("active",e.id===t)});}
 function resetUserForm(){userEditingId=null;$("uName").value="";$("uEmail").value="";$("uPassword").value="";$("uRole").value="";$("uActive").checked=true;$("uErr").textContent="";$("uPasswordSection").style.display="block";$("uEmail").disabled=false;$("uEmailNote").textContent="New user: enter desired login email";}
