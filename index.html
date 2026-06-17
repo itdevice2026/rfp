@@ -77,7 +77,7 @@
   .toolbar .search{flex:1;min-width:200px}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  table{width:100%;border-collapse:collapse;min-width:1400px}
+  table{width:100%;border-collapse:collapse;min-width:1000px}
   table th,table td{padding:8px 6px;font-size:12px;border-bottom:1px solid var(--line)}
   table th{background:var(--soft);font-weight:600}
   table th:nth-child(1){min-width:120px}
@@ -788,7 +788,7 @@ function render(){
       <td><span class="pill">${esc(c?c.code:"—")}</span></td>
       <td class="num">${fdate(r.request_date)}</td>
       <td>${esc(r.payee)}</td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.description||"")}</td>
+      <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.description||"")}</td>
       <td class="num">${esc(r.account_no||"")}</td>
       <td>${esc(svc)}</td>
       <td class="right num">${PHP(r.amount)}</td>
