@@ -242,7 +242,7 @@
     <div class="card">
       <table>
         <thead><tr>
-          <th>RFP No.</th><th>Company</th><th>Date</th><th>Payee</th><th>Description</th>
+          <th>RFP No.</th><th>Company</th><th>Date</th><th>Created</th><th>Payee</th><th>Description</th>
           <th>Account No.</th><th>Amount</th><th>Status</th>
         </tr></thead>
         <tbody id="rows"></tbody>
@@ -785,6 +785,7 @@ function render(){
       <td><b>${esc(r.rfp_number||"—")}</b></td>
       <td><span class="pill">${esc(c?c.code:"—")}</span></td>
       <td class="num">${fdate(r.request_date)}</td>
+      <td style="font-size:11px;color:var(--muted)">${r.created_at?new Date(r.created_at).toLocaleString():"—"}</td>
       <td>${esc(r.payee)}</td>
       <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.description||"")}</td>
       <td class="num">${esc(r.account_no||"")}</td>
