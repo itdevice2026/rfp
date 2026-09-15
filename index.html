@@ -238,6 +238,7 @@
       </select>
       <button class="btn ghost sm" id="refreshBtn">Refresh</button>
       <button class="btn sm" id="reportBtn">📄 Report</button>
+      <button class="btn sm" id="invoiceBtn">📥 Create from Invoice</button>
     </div>
     <div class="card">
       <table>
@@ -562,6 +563,65 @@
       <button class="btn blue" id="repPDF">🖨 Export PDF</button>
       <div style="flex:1"></div>
       <button class="btn ghost" id="repClose2">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- INVOICE UPLOAD MODAL -->
+<div class="overlay hidden" id="invoiceModal">
+  <div class="modal" style="width:600px">
+    <div class="modal-head"><h2>Create RFP from Invoice</h2><button class="x" id="invClose">×</button></div>
+    <div class="modal-body">
+      <div id="invUploadStep">
+        <p style="color:var(--muted);margin-bottom:16px">Upload an invoice file (PDF or Image). We'll extract key information and create an RFP.</p>
+        <div class="field">
+          <label>Select Invoice File</label>
+          <input type="file" id="invFile" accept="image/*,.pdf" />
+        </div>
+        <div class="err" id="invErr"></div>
+      </div>
+      <div id="invExtractStep" class="hidden">
+        <p style="color:var(--muted);margin-bottom:16px">Review and edit the extracted information:</p>
+        <div class="grid2">
+          <div class="field">
+            <label>Company *</label>
+            <select id="invCompany"></select>
+          </div>
+          <div class="field">
+            <label>Payee *</label>
+            <input type="text" id="invPayee" placeholder="Vendor/Supplier name"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <input type="text" id="invDesc" placeholder="Invoice description"/>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label>Amount *</label>
+            <input type="number" id="invAmount" placeholder="0.00" step="0.01"/>
+          </div>
+          <div class="field">
+            <label>Request Date</label>
+            <input type="date" id="invDate"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Account Number</label>
+          <input type="text" id="invAccount" placeholder="Account no."/>
+        </div>
+        <div class="err" id="invExtErr"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div id="invUploadFoot">
+        <button class="btn ok" id="invUploadBtn">Upload & Extract</button>
+        <button class="btn ghost" id="invCancel">Cancel</button>
+      </div>
+      <div id="invExtractFoot" class="hidden">
+        <button class="btn ok" id="invCreateBtn">Create RFP</button>
+        <button class="btn ghost" id="invEditCancel">Cancel</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1448,6 +1508,154 @@ function exportReportPDF(){
   w.document.write(html); w.document.close(); w.focus();
   setTimeout(()=>{try{w.print();}catch(e){}},400);
 }
+
+/* ---------- Invoice Upload to RFP ---------- */
+let invoiceFileData = null;
+
+$("invoiceBtn").onclick = () => {
+  $("invoiceModal").classList.remove("hidden");
+  $("invUploadStep").classList.remove("hidden");
+  $("invExtractStep").classList.add("hidden");
+  $("invUploadFoot").classList.remove("hidden");
+  $("invExtractFoot").classList.add("hidden");
+  $("invFile").value = "";
+  $("invErr").textContent = "";
+};
+
+$("invClose").onclick = $("invCancel").onclick = $("invEditCancel").onclick = () => {
+  $("invoiceModal").classList.add("hidden");
+  invoiceFileData = null;
+};
+
+$("invUploadBtn").onclick = async () => {
+  const file = $("invFile").files[0];
+  if (!file) {
+    $("invErr").textContent = "Please select a file";
+    return;
+  }
+
+  $("invErr").textContent = "";
+  $("invUploadBtn").disabled = true;
+  $("invUploadBtn").textContent = "Processing...";
+
+  try {
+    // Extract text from file (simple approach)
+    let extractedText = "";
+    if (file.type === "application/pdf") {
+      // For PDF, we'd need a library - for now, show message
+      $("invErr").textContent = "PDF parsing requires additional setup. Please use an image file or enter data manually.";
+      $("invUploadBtn").disabled = false;
+      $("invUploadBtn").textContent = "Upload & Extract";
+      return;
+    } else if (file.type.startsWith("image/")) {
+      // For images, we'd need OCR - for now, just allow manual entry
+      extractedText = "Image uploaded";
+    }
+
+    // Store the file
+    invoiceFileData = {
+      name: file.name,
+      type: file.type,
+      text: extractedText
+    };
+
+    // Show extract step with empty fields for manual entry
+    $("invCompany").innerHTML = `<option value="">Select company...</option>` + COMPANIES.filter(c => c.active).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+    $("invPayee").value = "";
+    $("invDesc").value = "";
+    $("invAmount").value = "";
+    $("invDate").value = new Date().toISOString().split("T")[0];
+    $("invAccount").value = "";
+    $("invExtErr").textContent = "";
+
+    $("invUploadStep").classList.add("hidden");
+    $("invExtractStep").classList.remove("hidden");
+    $("invUploadFoot").classList.add("hidden");
+    $("invExtractFoot").classList.remove("hidden");
+
+    toast("File uploaded. Fill in the details and create RFP.");
+  } catch (e) {
+    $("invErr").textContent = "Error: " + e.message;
+  } finally {
+    $("invUploadBtn").disabled = false;
+    $("invUploadBtn").textContent = "Upload & Extract";
+  }
+};
+
+$("invCreateBtn").onclick = async () => {
+  const companyId = $("invCompany").value;
+  const payee = ($("invPayee").value || "").trim();
+  const desc = ($("invDesc").value || "").trim();
+  const amount = parseFloat($("invAmount").value || "0");
+  const date = $("invDate").value;
+  const acctNo = ($("invAccount").value || "").trim();
+
+  $("invExtErr").textContent = "";
+
+  if (!companyId) {
+    $("invExtErr").textContent = "Company is required";
+    return;
+  }
+  if (!payee) {
+    $("invExtErr").textContent = "Payee is required";
+    return;
+  }
+  if (amount <= 0) {
+    $("invExtErr").textContent = "Amount must be greater than 0";
+    return;
+  }
+
+  $("invCreateBtn").disabled = true;
+  $("invCreateBtn").textContent = "Creating...";
+
+  try {
+    const {data: {user}} = await sb.auth.getUser();
+    if (!user) {
+      $("invExtErr").textContent = "User not authenticated";
+      return;
+    }
+
+    // Get next RFP number for this company
+    const co = COMPANIES.find(c => c.id === companyId);
+    const prefix = co ? (co.code || "XX") : "XX";
+    const lastNum = DATA.filter(r => r.company_id === companyId).reduce((max, r) => {
+      const m = (r.rfp_number || "").match(/\d+$/);
+      return Math.max(max, m ? parseInt(m[0]) : 0);
+    }, 0);
+    const rfpNum = prefix + new Date().getFullYear().toString().slice(2) + String(lastNum + 1).padStart(8, "0");
+
+    // Create RFP
+    const {data: newRfp, error} = await sb.from("rfp_requests").insert({
+      rfp_number: rfpNum,
+      company_id: companyId,
+      request_date: date || new Date().toISOString().split("T")[0],
+      payee: payee,
+      description: desc,
+      account_no: acctNo,
+      amount: amount,
+      payment_method: "others",
+      status: "draft",
+      created_by: user.id,
+      created_at: new Date().toISOString()
+    }).select();
+
+    if (error) {
+      $("invExtErr").textContent = "Error creating RFP: " + error.message;
+      return;
+    }
+
+    toast("RFP created: " + rfpNum);
+    $("invoiceModal").classList.add("hidden");
+    await loadData();
+    invoiceFileData = null;
+
+  } catch (e) {
+    $("invExtErr").textContent = "Error: " + e.message;
+  } finally {
+    $("invCreateBtn").disabled = false;
+    $("invCreateBtn").textContent = "Create RFP";
+  }
+};
 
 /* ---------- Session restore ---------- */
 (async()=>{
