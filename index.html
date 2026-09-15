@@ -582,7 +582,8 @@
         <div class="err" id="invErr"></div>
       </div>
       <div id="invExtractStep" class="hidden">
-        <p style="color:var(--muted);margin-bottom:16px">Review and edit the extracted information:</p>
+        <p style="color:var(--muted);margin-bottom:16px">Review extracted invoice data and fill in RFP details:</p>
+        <div style="background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:16px;max-height:200px;overflow-y:auto;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-word" id="invRawText"></div>
         <div class="grid2">
           <div class="field">
             <label>Company *</label>
@@ -1584,12 +1585,16 @@ $("invUploadBtn").onclick = async () => {
     $("invAccount").value = invoiceData.detectedAccount || "";
     $("invExtErr").textContent = "";
 
+    // Display raw extracted text so user can see what was parsed
+    const previewText = extractedText.substring(0, 1000);
+    $("invRawText").textContent = previewText + (extractedText.length > 1000 ? "\n\n[... more text ...]" : "");
+
     $("invUploadStep").classList.add("hidden");
     $("invExtractStep").classList.remove("hidden");
     $("invUploadFoot").classList.add("hidden");
     $("invExtractFoot").classList.remove("hidden");
 
-    toast("✓ Invoice data extracted. Review below and create RFP.");
+    toast("✓ Invoice uploaded. Check the text below and fill in RFP details manually.");
   } catch (e) {
     $("invErr").textContent = "Error processing file: " + e.message;
   } finally {
