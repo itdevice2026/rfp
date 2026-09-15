@@ -6,6 +6,7 @@
 <title>MEATPLUS · Request for Payment System</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root{
     --red:#c0322b; --red-d:#9c241f; --ink:#1c2430; --muted:#556573;
@@ -1539,32 +1540,64 @@ $("invUploadBtn").onclick = async () => {
   $("invUploadBtn").textContent = "Processing...";
 
   try {
-    // Extract text from file (simple approach)
     let extractedText = "";
+
     if (file.type === "application/pdf") {
-      // For PDF, we'd need a library - for now, show message
-      $("invErr").textContent = "PDF parsing requires additional setup. Please use an image file or enter data manually.";
-      $("invUploadBtn").disabled = false;
-      $("invUploadBtn").textContent = "Upload & Extract";
-      return;
+      // Parse PDF using pdf.js
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+
+      let fullText = "";
+      for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        fullText += textContent.items.map(item => item.str).join(" ") + "\n";
+      }
+      extractedText = fullText;
     } else if (file.type.startsWith("image/")) {
-      // For images, we'd need OCR - for now, just allow manual entry
-      extractedText = "Image uploaded";
+      extractedText = "Image uploaded - please enter details manually";
     }
+
+    // Try to extract key invoice data
+    const lines = extractedText.split("\n");
+    let detectedAmount = "";
+    let detectedDate = "";
+    let detectedPayee = "";
+
+    // Simple heuristic: look for numbers that look like amounts (with currency or decimal)
+    const amountPattern = /[\d,]+\.\d{2}|₱[\d,]+\.\d{2}|php\s*[\d,]+/gi;
+    const amounts = extractedText.match(amountPattern);
+    if (amounts && amounts.length > 0) {
+      detectedAmount = amounts[amounts.length - 1].replace(/[₱php\s]/gi, "").replace(",", "");
+    }
+
+    // Look for dates (various formats)
+    const datePattern = /(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4})/gi;
+    const dates = extractedText.match(datePattern);
+    if (dates && dates.length > 0) {
+      detectedDate = dates[0];
+    }
+
+    // Try to extract payee (often appears near top or after "Bill To:")
+    const billToMatch = extractedText.match(/bill\s*to[:\s]+([^\n]+)/i);
+    if (billToMatch) detectedPayee = billToMatch[1].trim().substring(0, 50);
 
     // Store the file
     invoiceFileData = {
       name: file.name,
       type: file.type,
-      text: extractedText
+      text: extractedText,
+      detectedAmount: detectedAmount,
+      detectedDate: detectedDate,
+      detectedPayee: detectedPayee
     };
 
-    // Show extract step with empty fields for manual entry
+    // Show extract step with populated fields
     $("invCompany").innerHTML = `<option value="">Select company...</option>` + COMPANIES.filter(c => c.active).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
-    $("invPayee").value = "";
-    $("invDesc").value = "";
-    $("invAmount").value = "";
-    $("invDate").value = new Date().toISOString().split("T")[0];
+    $("invPayee").value = detectedPayee;
+    $("invDesc").value = file.name.replace(".pdf", "").replace(".jpg", "").replace(".png", "");
+    $("invAmount").value = detectedAmount;
+    $("invDate").value = detectedDate ? new Date(detectedDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
     $("invAccount").value = "";
     $("invExtErr").textContent = "";
 
@@ -1573,9 +1606,9 @@ $("invUploadBtn").onclick = async () => {
     $("invUploadFoot").classList.add("hidden");
     $("invExtractFoot").classList.remove("hidden");
 
-    toast("File uploaded. Fill in the details and create RFP.");
+    toast("Invoice extracted. Review and update details below.");
   } catch (e) {
-    $("invErr").textContent = "Error: " + e.message;
+    $("invErr").textContent = "Error processing file: " + e.message;
   } finally {
     $("invUploadBtn").disabled = false;
     $("invUploadBtn").textContent = "Upload & Extract";
