@@ -1558,47 +1558,30 @@ $("invUploadBtn").onclick = async () => {
       extractedText = "Image uploaded - please enter details manually";
     }
 
-    // Try to extract key invoice data
-    const lines = extractedText.split("\n");
-    let detectedAmount = "";
-    let detectedDate = "";
-    let detectedPayee = "";
-
-    // Simple heuristic: look for numbers that look like amounts (with currency or decimal)
-    const amountPattern = /[\d,]+\.\d{2}|₱[\d,]+\.\d{2}|php\s*[\d,]+/gi;
-    const amounts = extractedText.match(amountPattern);
-    if (amounts && amounts.length > 0) {
-      detectedAmount = amounts[amounts.length - 1].replace(/[₱php\s]/gi, "").replace(",", "");
-    }
-
-    // Look for dates (various formats)
-    const datePattern = /(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4})/gi;
-    const dates = extractedText.match(datePattern);
-    if (dates && dates.length > 0) {
-      detectedDate = dates[0];
-    }
-
-    // Try to extract payee (often appears near top or after "Bill To:")
-    const billToMatch = extractedText.match(/bill\s*to[:\s]+([^\n]+)/i);
-    if (billToMatch) detectedPayee = billToMatch[1].trim().substring(0, 50);
+    // Extract comprehensive invoice data
+    const invoiceData = extractInvoiceDetails(extractedText, file.name);
 
     // Store the file
     invoiceFileData = {
       name: file.name,
       type: file.type,
       text: extractedText,
-      detectedAmount: detectedAmount,
-      detectedDate: detectedDate,
-      detectedPayee: detectedPayee
+      ...invoiceData
     };
 
-    // Show extract step with populated fields
+    // Populate form with extracted data
     $("invCompany").innerHTML = `<option value="">Select company...</option>` + COMPANIES.filter(c => c.active).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
-    $("invPayee").value = detectedPayee;
-    $("invDesc").value = file.name.replace(".pdf", "").replace(".jpg", "").replace(".png", "");
-    $("invAmount").value = detectedAmount;
-    $("invDate").value = detectedDate ? new Date(detectedDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
-    $("invAccount").value = "";
+
+    // Auto-select company if detected
+    if (invoiceData.detectedCompanyId) {
+      $("invCompany").value = invoiceData.detectedCompanyId;
+    }
+
+    $("invPayee").value = invoiceData.detectedPayee || "";
+    $("invDesc").value = invoiceData.detectedDesc || file.name.replace(".pdf", "").replace(".jpg", "").replace(".png", "");
+    $("invAmount").value = invoiceData.detectedAmount || "";
+    $("invDate").value = invoiceData.detectedDate ? new Date(invoiceData.detectedDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+    $("invAccount").value = invoiceData.detectedAccount || "";
     $("invExtErr").textContent = "";
 
     $("invUploadStep").classList.add("hidden");
@@ -1606,7 +1589,7 @@ $("invUploadBtn").onclick = async () => {
     $("invUploadFoot").classList.add("hidden");
     $("invExtractFoot").classList.remove("hidden");
 
-    toast("Invoice extracted. Review and update details below.");
+    toast("✓ Invoice data extracted. Review below and create RFP.");
   } catch (e) {
     $("invErr").textContent = "Error processing file: " + e.message;
   } finally {
@@ -1614,6 +1597,72 @@ $("invUploadBtn").onclick = async () => {
     $("invUploadBtn").textContent = "Upload & Extract";
   }
 };
+
+function extractInvoiceDetails(text, filename) {
+  const data = {
+    detectedPayee: "",
+    detectedAmount: "",
+    detectedDate: "",
+    detectedDesc: "",
+    detectedAccount: "",
+    detectedCompanyId: null
+  };
+
+  // Extract amount (total, last large number with decimals)
+  const amountPattern = /(?:total|amount|due|php|₱)\s*:?\s*(?:php\s*)?[\d,]+\.?\d{0,2}|[\d,]+\.\d{2}/gi;
+  const amounts = text.match(amountPattern);
+  if (amounts && amounts.length > 0) {
+    const lastAmount = amounts[amounts.length - 1];
+    data.detectedAmount = lastAmount.replace(/[a-z₱php:\s]/gi, "").replace(",", "");
+  }
+
+  // Extract date
+  const datePattern = /(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4}|(?:January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2},? \d{4})/gi;
+  const dates = text.match(datePattern);
+  if (dates && dates.length > 0) {
+    data.detectedDate = dates[0];
+  }
+
+  // Extract payee/vendor (from "FROM:", "Bill From:", filename, or prominent business name)
+  const fromMatch = text.match(/(?:from|billed by|vendor)[:\s]+([^\n]+)/i);
+  if (fromMatch) {
+    data.detectedPayee = fromMatch[1].trim().substring(0, 100);
+  } else {
+    // Try filename: "8000266745 - EASTERN JULY 2026 BILLING.pdf" -> extract "EASTERN"
+    const filenameMatch = filename.match(/([A-Z\s]+)(?:\d+|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER|JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)/);
+    if (filenameMatch) data.detectedPayee = filenameMatch[1].trim();
+  }
+
+  // Extract description (from invoice title or subject)
+  const descMatch = text.match(/(?:invoice|bill|statement|receipt)[:\s]*([^\n]+)/i);
+  if (descMatch) {
+    data.detectedDesc = descMatch[1].trim().substring(0, 100);
+  }
+
+  // Extract account number (from filename or invoice content)
+  const acctMatch = filename.match(/^(\d+)/);
+  if (acctMatch) {
+    data.detectedAccount = acctMatch[1];
+  } else {
+    const acctInText = text.match(/(?:account|ref|reference|bill[ing]* no)[:\s]*(\d+)/i);
+    if (acctInText) data.detectedAccount = acctInText[1];
+  }
+
+  // Try to auto-detect company by matching payee with vendors
+  const vendorLower = data.detectedPayee.toLowerCase();
+  const matchedVendor = VENDORS?.find(v => vendorLower.includes(v.name.toLowerCase())) || null;
+  if (matchedVendor) {
+    // Find company that uses this vendor (heuristic: first active company)
+    const company = COMPANIES?.find(c => c.active);
+    if (company) data.detectedCompanyId = company.id;
+  } else {
+    // Default to first active company if not matched
+    const defaultCo = COMPANIES?.find(c => c.active);
+    if (defaultCo) data.detectedCompanyId = defaultCo.id;
+  }
+
+  return data;
+}
 
 $("invCreateBtn").onclick = async () => {
   const companyId = $("invCompany").value;
